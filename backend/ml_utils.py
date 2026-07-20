@@ -20,6 +20,12 @@ CACHE_MAX_AGE_HOURS = 24
 _history_cache: dict[str, tuple[float, "pd.DataFrame"]] = {}
 HISTORY_CACHE_TTL_SECONDS = 60  # short TTL since prices should feel live
 
+_quote_cache: dict[str, tuple[float, dict]] = {}
+QUOTE_CACHE_TTL_SECONDS = 5  # matches websocket poll interval
+
+_validate_cache: dict[str, tuple[float, bool]] = {}
+VALIDATE_CACHE_TTL_SECONDS = 3600  # ticker validity rarely changes within an hour
+
 # ---------- Currency / formatting ----------
 
 CURRENCY_MAP = {
@@ -51,11 +57,18 @@ def get_currency_symbol(ticker: str) -> str:
 
 
 def validate_ticker(ticker: str) -> bool:
+    now = time.time()
+    if ticker in _validate_cache:
+        cached_at, is_valid = _validate_cache[ticker]
+        if now - cached_at < VALIDATE_CACHE_TTL_SECONDS:
+            return is_valid
     try:
         hist = yf.Ticker(ticker).history(period="5d")
-        return not hist.empty
+        is_valid = not hist.empty
     except Exception:
-        return False
+        is_valid = False
+    _validate_cache[ticker] = (now, is_valid)
+    return is_valid
 
 
 # ---------- Stock data ----------
