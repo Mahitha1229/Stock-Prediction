@@ -97,7 +97,14 @@ def get_cached_stock_history(ticker: str, period: str = "60d", interval: str = "
 
 
 def get_latest_quote(ticker: str) -> dict:
-    """Lightweight latest-price fetch, used by the websocket price feed."""
+    """Lightweight latest-price fetch, used by the websocket price feed.
+    Cached briefly so multiple users watching the same ticker share one Yahoo request."""
+    now = time.time()
+    if ticker in _quote_cache:
+        cached_at, data = _quote_cache[ticker]
+        if now - cached_at < QUOTE_CACHE_TTL_SECONDS:
+            return data
+
     hist = yf.Ticker(ticker).history(period="2d", interval="1m")
     if hist.empty:
         hist = yf.Ticker(ticker).history(period="5d", interval="1d")
@@ -107,7 +114,7 @@ def get_latest_quote(ticker: str) -> dict:
     prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last["Close"]
     change = float(last["Close"] - prev_close)
     change_pct = (change / prev_close) * 100 if prev_close else 0.0
-    return {
+    result = {
         "ticker": ticker,
         "price": round(float(last["Close"]), 2),
         "change": round(change, 2),
@@ -115,6 +122,8 @@ def get_latest_quote(ticker: str) -> dict:
         "volume": int(last["Volume"]) if not np.isnan(last["Volume"]) else 0,
         "timestamp": datetime.now().isoformat(),
     }
+    _quote_cache[ticker] = (now, result)
+    return result
 
 
 def get_technical_indicators(stock_data):
