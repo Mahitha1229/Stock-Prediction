@@ -132,12 +132,12 @@ def get_technical_indicators(stock_data):
     gain = delta.where(delta > 0, 0).rolling(window=14).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
     rs = gain / loss
-    df["RSI"] = 100 - (100 / (1 + rs))
-    df["Stochastic"] = ((df["Close"] - df["Low"].rolling(14).min()) /
-                         (df["High"].rolling(14).max() - df["Low"].rolling(14).min())) * 100
-    df["ROC"] = df["Close"].pct_change(periods=10) * 100
-    df["ADX"] = abs(df["High"] - df["Low"]).rolling(14).mean()
-    df.fillna(0, inplace=True)
+    # RSI/Stochastic: neutral midpoint (50) instead of misleading 0 for early rows
+    df["RSI"] = df["RSI"].fillna(50)
+    df["Stochastic"] = df["Stochastic"].fillna(50)
+    # ROC/ADX: 0 is a genuinely neutral/reasonable default for these
+    df["ROC"] = df["ROC"].fillna(0)
+    df["ADX"] = df["ADX"].fillna(0)
     return df
 
 
