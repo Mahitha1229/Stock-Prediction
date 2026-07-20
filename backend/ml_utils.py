@@ -4,6 +4,7 @@ import pickle
 import requests
 from datetime import datetime, timedelta
 from functools import lru_cache
+import pandas as pd
 
 import yfinance as yf
 import numpy as np
@@ -128,16 +129,43 @@ def get_latest_quote(ticker: str) -> dict:
 
 def get_technical_indicators(stock_data):
     df = stock_data.copy()
+
+    # RSI
     delta = df["Close"].diff()
     gain = delta.where(delta > 0, 0).rolling(window=14).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
     rs = gain / loss
-    # RSI/Stochastic: neutral midpoint (50) instead of misleading 0 for early rows
+    df["RSI"] = 100 - (100 / (1 + rs))
     df["RSI"] = df["RSI"].fillna(50)
+
+    # Stochastic Oscillator
+    low14 = df["Low"].rolling(window=14).min()
+    high14 = df["High"].rolling(window=14).max()
+    df["Stochastic"] = 100 * (df["Close"] - low14) / (high14 - low14)
     df["Stochastic"] = df["Stochastic"].fillna(50)
-    # ROC/ADX: 0 is a genuinely neutral/reasonable default for these
+
+    # Rate of Change
+    df["ROC"] = df["Close"].pct_change(periods=12) * 100
     df["ROC"] = df["ROC"].fillna(0)
+
+    # ADX (Average Directional Index)
+    high, low, close = df["High"], df["Low"], df["Close"]
+    plus_dm = high.diff()
+    minus_dm = -low.diff()
+    plus_dm[plus_dm < 0] = 0
+    minus_dm[minus_dm < 0] = 0
+    tr = pd.concat([
+        high - low,
+        (high - close.shift()).abs(),
+        (low - close.shift()).abs(),
+    ], axis=1).max(axis=1)
+    atr = tr.rolling(window=14).mean()
+    plus_di = 100 * (plus_dm.rolling(window=14).mean() / atr)
+    minus_di = 100 * (minus_dm.rolling(window=14).mean() / atr)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+    df["ADX"] = dx.rolling(window=14).mean()
     df["ADX"] = df["ADX"].fillna(0)
+
     return df
 
 
