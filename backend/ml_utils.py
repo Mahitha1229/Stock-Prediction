@@ -191,23 +191,48 @@ def load_models() -> dict:
 def resolve_ticker(query: str) -> list[dict]:
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search"
-        params = {"q": query, "quotesCount": 5, "newsCount": 0}
+        params = {"q": query, "quotesCount": 10, "newsCount": 0}
         headers = {"User-Agent": "Mozilla/5.0"}
         resp = requests.get(url, params=params, headers=headers, timeout=6)
         resp.raise_for_status()
         data = resp.json()
+
+        query_lower = query.strip().lower()
         matches = []
         for r in data.get("quotes", []):
             symbol = r.get("symbol")
             if not symbol:
                 continue
+            name = r.get("shortname") or r.get("longname") or symbol
+            quote_type = r.get("quoteType", "")
+            name_lower = name.lower()
+
+            score = 0
+            if name_lower == query_lower:
+                score += 100
+            elif name_lower.startswith(query_lower):
+                score += 50
+            elif query_lower in name_lower:
+                score += 20
+
+            if quote_type == "EQUITY":
+                score += 30
+
             matches.append({
                 "symbol": symbol,
-                "name": r.get("shortname") or r.get("longname") or symbol,
+                "name": name,
                 "exchange": r.get("exchange"),
-                "type": r.get("quoteType"),
+                "type": quote_type,
+                "_score": score,
             })
-        return matches
+
+        # Drop zero-score junk like "OEU.F" for a query like "reliance"
+        matches = [m for m in matches if m["_score"] > 0] or matches
+
+        matches.sort(key=lambda m: m["_score"], reverse=True)
+        for m in matches:
+            m.pop("_score", None)
+        return matches[:6]
     except Exception:
         return []
 

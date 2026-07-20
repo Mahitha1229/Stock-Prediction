@@ -20,6 +20,11 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [tapeTickers, setTapeTickers] = useState<string[]>(['AAPL', 'MSFT', 'TSLA', 'NVDA', 'GOOGL'])
 
+  // Search dropdown state
+  const [searchResults, setSearchResults] = useState<{ symbol: string; name: string; exchange?: string }[]>([])
+  const [showResults, setShowResults] = useState(false)
+  const [searching, setSearching] = useState(false)
+
   // Pull a global mix (a couple per region) for the scrolling ticker tape,
   // instead of a hardcoded US-only list.
   useEffect(() => {
@@ -67,26 +72,39 @@ export default function Dashboard() {
     }
   }, [ticker])
 
-  async function handleSearch(e: React.FormEvent) {
-  e.preventDefault()
-  const query = inputValue.trim()
-  if (!query) return
-
-  try {
-    const results = await searchTickers(query)
-    if (results.length > 0) {
-      const best = results[0].symbol
-      setTicker(best)
-      setInputValue(best)
-      return
-    }
-  } catch {
-    // search failed — fall through to direct ticker attempt
+  function selectTicker(symbol: string) {
+    setTicker(symbol)
+    setInputValue(symbol)
+    setShowResults(false)
+    setSearchResults([])
   }
 
-  // fallback: treat input as a literal ticker (covers exact symbols like AAPL, RELIANCE.NS)
-  setTicker(query.toUpperCase())
-}
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const query = inputValue.trim()
+    if (!query) return
+
+    setSearching(true)
+    try {
+      const results = await searchTickers(query)
+      if (results.length === 1) {
+        selectTicker(results[0].symbol)
+        return
+      }
+      if (results.length > 1) {
+        setSearchResults(results)
+        setShowResults(true)
+        return
+      }
+    } catch {
+      // search failed — fall through to direct ticker attempt
+    } finally {
+      setSearching(false)
+    }
+
+    // fallback: treat input as a literal ticker (covers exact symbols like AAPL, RELIANCE.NS)
+    selectTicker(query.toUpperCase())
+  }
 
   return (
     <div className="app-shell">
@@ -94,15 +112,82 @@ export default function Dashboard() {
 
       <div className="topbar">
         <div className="brand"><span className="brand__mark" />Quantis</div>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, flex: 1, maxWidth: 360, margin: '0 24px' }}>
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Search ticker (e.g. AAPL, RELIANCE.NS)"
-          />
-          <button className="ghost" type="submit">Go</button>
-        </form>
+
+        <div style={{ position: 'relative', flex: 1, maxWidth: 360, margin: '0 24px' }}>
+          <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onFocus={() => { if (searchResults.length > 0) setShowResults(true) }}
+              placeholder="Search ticker (e.g. AAPL, RELIANCE.NS)"
+              style={{ flex: 1 }}
+            />
+            <button className="ghost" type="submit" disabled={searching}>
+              {searching ? '…' : 'Go'}
+            </button>
+          </form>
+
+          {showResults && searchResults.length > 0 && (
+            <>
+              {/* click-away overlay */}
+              <div
+                onClick={() => setShowResults(false)}
+                style={{ position: 'fixed', inset: 0, zIndex: 10 }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: 4,
+                  background: 'var(--bg-panel, #12141a)',
+                  border: '1px solid var(--border, #22262F)',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  zIndex: 20,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}
+              >
+                {searchResults.map((r) => (
+                  <button
+                    key={r.symbol}
+                    type="button"
+                    onClick={() => selectTicker(r.symbol)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '1px solid var(--border, #22262F)',
+                      color: 'var(--text-primary, #e6e6e6)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: 13,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <strong>{r.symbol}</strong>
+                      <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>{r.name}</span>
+                    </span>
+                    {r.exchange && (
+                      <span style={{ color: 'var(--text-secondary)', marginLeft: 8, flexShrink: 0, fontSize: 11 }}>
+                        {r.exchange}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{username}</span>
           <button className="ghost" onClick={logout}>Log out</button>
@@ -152,7 +237,7 @@ export default function Dashboard() {
         </div>
 
         <div className="panel">
-          <Watchlist onSelect={(t) => { setTicker(t); setInputValue(t) }} />
+          <Watchlist onSelect={(t) => selectTicker(t)} />
           <div style={{ marginTop: 16 }}>
             <Chat />
           </div>
