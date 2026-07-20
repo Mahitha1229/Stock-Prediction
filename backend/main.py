@@ -164,8 +164,7 @@ def quote(ticker: str):
 @app.get("/stock/{ticker}/predict")
 def predict(ticker: str):
     ticker = ticker.upper()
-    if not ml.validate_ticker(ticker):
-        raise HTTPException(status_code=404, detail="Invalid ticker")
+    
  
     # Fast path 1: pretrained curated model already in memory
     if ticker in all_models:
@@ -196,7 +195,11 @@ def predict(ticker: str):
             "currency_symbol": ml.get_currency_symbol(ticker),
             "status": "done",
         }
- 
+    
+    # New ticker with no cached/pretrained model — validate before training
+    if not ml.validate_ticker(ticker):
+        raise HTTPException(status_code=404, detail="Invalid ticker")
+
     # Slow path: no model yet -> train in the background, respond immediately
     with _prediction_jobs_lock:
         job = _prediction_jobs.get(ticker)
