@@ -1,0 +1,307 @@
+import os
+import time
+import pickle
+import requests
+from datetime import datetime, timedelta
+from functools import lru_cache
+
+import yfinance as yf
+import numpy as np
+import xgboost as xgb
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import MinMaxScaler
+
+MODEL_PATH = "stock_models.pkl"
+MODEL_CACHE_DIR = "model_cache"
+ON_DEMAND_TIME_STEP = 10
+CACHE_MAX_AGE_HOURS = 24
+
+# ---------- Simple TTL cache (replaces st.cache_data) ----------
+_history_cache: dict[str, tuple[float, "pd.DataFrame"]] = {}
+HISTORY_CACHE_TTL_SECONDS = 60  # short TTL since prices should feel live
+
+# ---------- Currency / formatting ----------
+
+CURRENCY_MAP = {
+    ".NS": "₹", ".BO": "₹",
+    ".L": "£",
+    ".T": "¥",
+    ".HK": "HK$",
+    ".SS": "¥", ".SZ": "¥",
+    ".DE": "€", ".PA": "€", ".AS": "€", ".MI": "€", ".BR": "€", ".MC": "€", ".LS": "€",
+    ".TO": "C$", ".V": "C$",
+    ".AX": "A$",
+    ".SA": "R$",
+    ".SW": "CHF ",
+    ".KS": "₩", ".KQ": "₩",
+    ".SI": "S$",
+    ".TW": "NT$", ".TWO": "NT$",
+    ".JK": "Rp",
+    ".NZ": "NZ$",
+    ".MX": "MX$",
+}
+
+
+def get_currency_symbol(ticker: str) -> str:
+    ticker = ticker.upper()
+    for suffix, symbol in CURRENCY_MAP.items():
+        if ticker.endswith(suffix):
+            return symbol
+    return "$"
+
+
+def validate_ticker(ticker: str) -> bool:
+    try:
+        hist = yf.Ticker(ticker).history(period="5d")
+        return not hist.empty
+    except Exception:
+        return False
+
+
+# ---------- Stock data ----------
+
+def get_stock_history(ticker: str, period: str = "1y", interval: str = "1d"):
+    hist = yf.Ticker(ticker).history(period=period, interval=interval)
+    if not hist.empty:
+        hist = hist.dropna(subset=["Close"])
+    return hist
+
+
+def get_cached_stock_history(ticker: str, period: str = "60d", interval: str = "1d"):
+    """TTL-cached history fetch — short cache so live views stay fresh
+    without hammering yfinance on every request/websocket tick."""
+    key = f"{ticker}|{period}|{interval}"
+    now = time.time()
+    if key in _history_cache:
+        cached_at, df = _history_cache[key]
+        if now - cached_at < HISTORY_CACHE_TTL_SECONDS:
+            return df
+    hist = yf.Ticker(ticker).history(period=period, interval=interval)
+    if not hist.empty:
+        hist = hist.dropna(subset=["Close"])
+    _history_cache[key] = (now, hist)
+    return hist
+
+
+def get_latest_quote(ticker: str) -> dict:
+    """Lightweight latest-price fetch, used by the websocket price feed."""
+    hist = yf.Ticker(ticker).history(period="2d", interval="1m")
+    if hist.empty:
+        hist = yf.Ticker(ticker).history(period="5d", interval="1d")
+    if hist.empty:
+        return {}
+    last = hist.iloc[-1]
+    prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last["Close"]
+    change = float(last["Close"] - prev_close)
+    change_pct = (change / prev_close) * 100 if prev_close else 0.0
+    return {
+        "ticker": ticker,
+        "price": round(float(last["Close"]), 2),
+        "change": round(change, 2),
+        "change_pct": round(change_pct, 2),
+        "volume": int(last["Volume"]) if not np.isnan(last["Volume"]) else 0,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+def get_technical_indicators(stock_data):
+    df = stock_data.copy()
+    delta = df["Close"].diff()
+    gain = delta.where(delta > 0, 0).rolling(window=14).mean()
+    loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
+    rs = gain / loss
+    df["RSI"] = 100 - (100 / (1 + rs))
+    df["Stochastic"] = ((df["Close"] - df["Low"].rolling(14).min()) /
+                         (df["High"].rolling(14).max() - df["Low"].rolling(14).min())) * 100
+    df["ROC"] = df["Close"].pct_change(periods=10) * 100
+    df["ADX"] = abs(df["High"] - df["Low"]).rolling(14).mean()
+    df.fillna(0, inplace=True)
+    return df
+
+
+# ---------- Pretrained models (curated tickers) ----------
+
+_models_cache = None
+
+
+def load_models() -> dict:
+    global _models_cache
+    if _models_cache is not None:
+        return _models_cache
+    try:
+        with open(MODEL_PATH, "rb") as f:
+            _models_cache = pickle.load(f)
+    except FileNotFoundError:
+        _models_cache = {}
+    except Exception:
+        _models_cache = {}
+    return _models_cache
+
+
+def resolve_ticker(query: str) -> list[dict]:
+    try:
+        url = "https://query1.finance.yahoo.com/v1/finance/search"
+        params = {"q": query, "quotesCount": 5, "newsCount": 0}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, params=params, headers=headers, timeout=6)
+        resp.raise_for_status()
+        data = resp.json()
+        matches = []
+        for r in data.get("quotes", []):
+            symbol = r.get("symbol")
+            if not symbol:
+                continue
+            matches.append({
+                "symbol": symbol,
+                "name": r.get("shortname") or r.get("longname") or symbol,
+                "exchange": r.get("exchange"),
+                "type": r.get("quoteType"),
+            })
+        return matches
+    except Exception:
+        return []
+
+
+def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
+    try:
+        raw_items = yf.Ticker(ticker).news or []
+        articles = []
+        for item in raw_items[:limit]:
+            content = item.get("content", item)
+            if isinstance(content, dict) and "title" in content:
+                title = content.get("title")
+                url = (
+                    (content.get("canonicalUrl") or {}).get("url")
+                    or (content.get("clickThroughUrl") or {}).get("url")
+                )
+                publisher = (content.get("provider") or {}).get("displayName")
+            else:
+                title = item.get("title")
+                url = item.get("link")
+                publisher = item.get("publisher")
+            if title:
+                articles.append({"title": title, "publisher": publisher, "url": url})
+        return articles
+    except Exception:
+        return []
+
+
+# ---------- On-demand models ----------
+
+def _cache_path(ticker: str) -> str:
+    safe = ticker.upper().replace("/", "_").replace("^", "IDX_").replace(".", "_")
+    return os.path.join(MODEL_CACHE_DIR, f"{safe}.pkl")
+
+def get_cached_on_demand_model(ticker: str):
+    """Check disk cache only — never trains. Used by the async predict endpoint
+    to decide whether a request can be answered instantly or needs a background job."""
+    path = _cache_path(ticker)
+    if os.path.exists(path):
+        age_hours = (datetime.now().timestamp() - os.path.getmtime(path)) / 3600
+        if age_hours < CACHE_MAX_AGE_HOURS:
+            try:
+                with open(path, "rb") as f:
+                    return pickle.load(f)
+            except Exception:
+                pass
+    return None
+
+def train_on_demand_model(ticker: str):
+    os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+    hist = get_stock_history(ticker, period="2y")
+    if hist.empty or len(hist) < ON_DEMAND_TIME_STEP + 30:
+        return None
+
+    data = get_technical_indicators(hist)
+    features = ["Close", "RSI", "Stochastic", "ROC", "ADX"]
+    scaler = MinMaxScaler()
+    scaled = scaler.fit_transform(data[features])
+
+    X, y = [], []
+    for i in range(ON_DEMAND_TIME_STEP, len(scaled) - 1):
+        X.append(scaled[i - ON_DEMAND_TIME_STEP:i].flatten())
+        y.append(scaled[i + 1, 0])
+    X, y = np.array(X), np.array(y)
+
+    if len(X) < 30:
+        return None
+
+    xgb_model = xgb.XGBRegressor(n_estimators=200, max_depth=4, learning_rate=0.05)
+    xgb_model.fit(X, y)
+
+    rf_model = RandomForestRegressor(n_estimators=200, max_depth=8, random_state=42)
+    rf_model.fit(X, y)
+
+    model_dict = {
+        "scaler": scaler,
+        "time_step": ON_DEMAND_TIME_STEP,
+        "xgb": xgb_model,
+        "rf": rf_model,
+        "trained_at": datetime.now().isoformat(),
+        "on_demand": True,
+    }
+    with open(_cache_path(ticker), "wb") as f:
+        pickle.dump(model_dict, f)
+    return model_dict
+
+
+def get_or_train_model(ticker: str, pretrained_models: dict):
+    if ticker in pretrained_models:
+        return pretrained_models[ticker]
+ 
+    cached = get_cached_on_demand_model(ticker)
+    if cached:
+        return cached
+ 
+    return train_on_demand_model(ticker)
+
+
+def predict_next_day(ticker: str, model_dict: dict):
+    hist = get_cached_stock_history(ticker, period="60d")
+    if hist.empty:
+        return None, "No data available for this stock"
+
+    data = get_technical_indicators(hist)
+    features = ["Close", "RSI", "Stochastic", "ROC", "ADX"]
+    scaler = model_dict["scaler"]
+    time_step = model_dict["time_step"]
+
+    if len(data) < time_step:
+        return None, "Not enough recent data for this stock"
+
+    data_scaled = scaler.transform(data[features].tail(time_step))
+    X_flat = data_scaled.reshape(1, -1)
+
+    preds = []
+    if "lstm" in model_dict:
+        X_lstm = data_scaled.reshape(1, time_step, len(features))
+        preds.append(float(model_dict["lstm"].predict(X_lstm, verbose=0)[0][0]))
+    if "xgb" in model_dict:
+        preds.append(float(model_dict["xgb"].predict(X_flat)[0]))
+    if "rf" in model_dict:
+        preds.append(float(model_dict["rf"].predict(X_flat)[0]))
+
+    if not preds:
+        return None, "No valid model components available"
+
+    ensemble_pred = sum(preds) / len(preds)
+    pred_scaled = np.zeros((1, len(features)))
+    pred_scaled[0, 0] = ensemble_pred
+    predicted_price = scaler.inverse_transform(pred_scaled)[0, 0]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    return predicted_price, tomorrow
+
+# === Add this to ml_utils.py ===
+
+TRENDING_TICKERS = {
+    "US": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"],
+    "India": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS"],
+    "Europe": ["SAP.DE", "ASML.AS", "MC.PA", "NESN.SW"],
+    "Asia-Pacific": ["7203.T", "0700.HK", "005930.KS", "BHP.AX"],
+    "Crypto": ["BTC-USD", "ETH-USD", "SOL-USD"],
+}
+
+
+def get_trending_tickers() -> dict:
+    return TRENDING_TICKERS
+

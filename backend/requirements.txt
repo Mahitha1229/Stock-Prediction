@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+python-multipart
+bcrypt
+yfinance
+numpy
+xgboost
+scikit-learn
+requests
+pydantic
+groq
+python-dotenv
