@@ -241,13 +241,20 @@ async def ws_prices(websocket: WebSocket, ticker: str):
     ticker = ticker.upper()
     try:
         while True:
-            quote_data = ml.get_latest_quote(ticker)
+            quote_data = await asyncio.to_thread(ml.get_latest_quote, ticker)
             if quote_data:
                 quote_data["currency_symbol"] = ml.get_currency_symbol(ticker)
                 await websocket.send_json(quote_data)
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
+    except Exception:
+        pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 @app.get("/trending-tickers")
 def trending_tickers():
     """Global default suggestions grouped by region, for dashboard/search defaults.
