@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   Candle, Quote, Prediction,
-  fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers,
+  fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
 } from '../api'
 import CandlestickChart from '../components/CandlestickChart'
 import TickerTape from '../components/TickerTape'
@@ -67,10 +67,26 @@ export default function Dashboard() {
     }
   }, [ticker])
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    if (inputValue.trim()) setTicker(inputValue.trim().toUpperCase())
+  async function handleSearch(e: React.FormEvent) {
+  e.preventDefault()
+  const query = inputValue.trim()
+  if (!query) return
+
+  try {
+    const results = await searchTickers(query)
+    if (results.length > 0) {
+      const best = results[0].symbol
+      setTicker(best)
+      setInputValue(best)
+      return
+    }
+  } catch {
+    // search failed — fall through to direct ticker attempt
   }
+
+  // fallback: treat input as a literal ticker (covers exact symbols like AAPL, RELIANCE.NS)
+  setTicker(query.toUpperCase())
+}
 
   return (
     <div className="app-shell">
