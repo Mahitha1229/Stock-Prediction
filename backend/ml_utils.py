@@ -246,54 +246,142 @@ def load_models() -> dict:
     return _models_cache
 
 
-def resolve_ticker(query: str) -> list[dict]:
+import concurrent.futures
+
+# Best-effort mapping from OpenFIGI's exchange codes to Yahoo Finance's
+# ticker suffix convention. OpenFIGI's codes aren't perfectly documented
+# publicly, so this covers the major/common exchanges; unmapped exchanges
+# are skipped rather than guessed wrong.
+OPENFIGI_EXCHANGE_TO_YAHOO_SUFFIX = {
+    "US": "", "UN": "", "UW": "", "UR": "", "UA": "",  # US listings, no suffix
+    "LN": ".L",                # London
+    "GR": ".DE", "GY": ".DE",  # Germany / Xetra
+    "FP": ".PA",               # Paris
+    "NA": ".AS",               # Amsterdam
+    "IM": ".MI",               # Milan
+    "SM": ".MC",               # Madrid
+    "PL": ".LS",               # Lisbon
+    "JT": ".T",                # Tokyo
+    "HK": ".HK",               # Hong Kong
+    "KS": ".KS",                # Korea (KOSPI)
+    "KQ": ".KQ",                # Korea (KOSDAQ)
+    "SP": ".SI",                # Singapore
+    "AU": ".AX",                # Australia
+    "SW": ".SW",                # Switzerland
+    "CN": ".TO",                # Toronto
+    "CT": ".V",                 # TSX Venture
+    "BZ": ".SA",                # Brazil (Sao Paulo)
+    "MM": ".MX",                # Mexico
+    "NZ": ".NZ",                # New Zealand
+    "IN": ".NS",                # India NSE (best-effort)
+    "IB": ".BO",                # India BSE (best-effort)
+    "SS": ".SS",                # Shanghai
+    "SZ": ".SZ",                # Shenzhen
+    "TT": ".TW",                # Taiwan
+}
+
+
+def _search_yahoo(query: str) -> list[dict]:
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search"
-        params = {"q": query, "quotesCount": 10, "newsCount": 0}
+        params = {"q": query, "quotesCount": 20, "newsCount": 0, "enableFuzzyQuery": True}
         headers = {"User-Agent": "Mozilla/5.0"}
         resp = requests.get(url, params=params, headers=headers, timeout=6)
         resp.raise_for_status()
         data = resp.json()
-
-        query_lower = query.strip().lower()
-        matches = []
+        results = []
         for r in data.get("quotes", []):
             symbol = r.get("symbol")
             if not symbol:
                 continue
-            name = r.get("shortname") or r.get("longname") or symbol
-            quote_type = r.get("quoteType", "")
-            name_lower = name.lower()
-
-            score = 0
-            if name_lower == query_lower:
-                score += 100
-            elif name_lower.startswith(query_lower):
-                score += 50
-            elif query_lower in name_lower:
-                score += 20
-
-            if quote_type == "EQUITY":
-                score += 30
-
-            matches.append({
+            results.append({
                 "symbol": symbol,
-                "name": name,
+                "name": r.get("shortname") or r.get("longname") or symbol,
                 "exchange": r.get("exchange"),
-                "type": quote_type,
-                "_score": score,
+                "type": r.get("quoteType", ""),
             })
-
-        # Drop zero-score junk (unrelated matches) when we have better options
-        filtered = [m for m in matches if m["_score"] > 0]
-        matches = filtered if filtered else matches
-
-        matches.sort(key=lambda m: m["_score"], reverse=True)
-        for m in matches:
-            m.pop("_score", None)
-        return matches[:6]
+        return results
     except Exception:
         return []
+
+
+def _search_openfigi(query: str) -> list[dict]:
+    """OpenFIGI (Bloomberg's free identifier database) — much deeper global
+    coverage than Yahoo's search, especially for less mainstream names.
+    Free, no API key required at low volume."""
+    try:
+        resp = requests.post(
+            "https://api.openfigi.com/v3/search",
+            json={"query": query},
+            headers={"Content-Type": "application/json"},
+            timeout=6,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = []
+        for item in data.get("data", [])[:15]:
+            ticker = item.get("ticker")
+            exch_code = item.get("exchCode")
+            name = item.get("name") or item.get("securityDescription") or ticker
+            security_type = item.get("securityType2") or item.get("securityType") or ""
+            if not ticker or not exch_code:
+                continue
+            suffix = OPENFIGI_EXCHANGE_TO_YAHOO_SUFFIX.get(exch_code)
+            if suffix is None:
+                continue  # unmapped exchange — skip rather than guess wrong
+            symbol = f"{ticker}{suffix}"
+            results.append({
+                "symbol": symbol,
+                "name": name,
+                "exchange": exch_code,
+                "type": "EQUITY" if "equity" in security_type.lower() or "common" in security_type.lower() else security_type,
+            })
+        return results
+    except Exception:
+        return []
+
+
+def resolve_ticker(query: str) -> list[dict]:
+    query_lower = query.strip().lower()
+    if not query_lower:
+        return []
+
+    # Query both sources concurrently so combining them doesn't double the wait time
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        yahoo_future = executor.submit(_search_yahoo, query)
+        figi_future = executor.submit(_search_openfigi, query)
+        yahoo_results = yahoo_future.result()
+        figi_results = figi_future.result()
+
+    # Merge + dedupe by symbol — Yahoo entries take priority on collision
+    # since they're guaranteed yfinance-compatible
+    combined: dict[str, dict] = {}
+    for r in yahoo_results + figi_results:
+        combined.setdefault(r["symbol"], r)
+
+    scored = []
+    for symbol, r in combined.items():
+        name_lower = (r.get("name") or "").lower()
+        score = 0
+        if name_lower == query_lower:
+            score += 100
+        elif name_lower.startswith(query_lower):
+            score += 50
+        elif query_lower in name_lower:
+            score += 20
+        elif symbol.lower().startswith(query_lower):
+            score += 15
+
+        if str(r.get("type", "")).upper() == "EQUITY":
+            score += 30
+
+        scored.append((score, r))
+
+    filtered = [s for s in scored if s[0] > 0]
+    scored = filtered if filtered else scored
+    scored.sort(key=lambda s: s[0], reverse=True)
+
+    return [r for _, r in scored[:8]]
 
 
 def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
