@@ -137,3 +137,8 @@ export async function fetchTrendingTickers() {
   const { data } = await api.get('/trending-tickers')
   return data.trending as Record<string, string[]>
 }
+
+export async function validateTicker(ticker: string) {
+  const { data } = await api.get(`/stock/${ticker}/validate`)
+  return data.valid as boolean
+}
