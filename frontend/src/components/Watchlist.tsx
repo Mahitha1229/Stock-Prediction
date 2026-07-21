@@ -25,9 +25,10 @@ export default function Watchlist({ onSelect }: { onSelect: (ticker: string) => 
   // Debounced live search, same pattern as the main ticker search bar.
   useEffect(() => {
     const query = newTicker.trim()
-    if (!query || query.length < 2) {
+    if (!query) {
       setSearchResults([])
       setShowResults(false)
+      setSearching(false)
       return
     }
 
