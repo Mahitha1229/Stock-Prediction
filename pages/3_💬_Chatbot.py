@@ -382,7 +382,25 @@ def run_chat(user_input, history):
         response_message = response.choices[0].message
 
         if response_message.tool_calls:
-            messages.append(response_message)
+            # Convert the Groq SDK's Pydantic response object into a plain dict
+            # before appending — sending the raw object back corrupts the
+            # conversation history and makes the model try to call tools again
+            # in the follow-up request, which has no `tools` param and fails.
+            messages.append({
+                "role": "assistant",
+                "content": response_message.content,
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in response_message.tool_calls
+                ],
+            })
             for tool_call in response_message.tool_calls:
                 fn_name = tool_call.function.name
                 fn_args = json.loads(tool_call.function.arguments)
@@ -400,9 +418,11 @@ def run_chat(user_input, history):
                 temperature=0.1,
                 max_tokens=800,
             )
-            return second_response.choices[0].message.content
+            return second_response.choices[0].message.content or (
+                "I looked that up but couldn't form a reply — try rephrasing your question."
+            )
 
-        return response_message.content
+        return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
 
     except Exception as e:
         return f"Sorry, something went wrong: {str(e)}"
