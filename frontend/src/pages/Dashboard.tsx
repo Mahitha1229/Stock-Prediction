@@ -145,7 +145,7 @@ export default function Dashboard() {
 
   return (
     <div className="app-shell">
-      <TickerTape tickers={tapeTickers} />
+      <TickerTape tickers={tapeTickers} onSelect={(t) => selectTicker(t)} />
 
       <div className="topbar">
         <div className="brand"><span className="brand__mark" />Quantis</div>
