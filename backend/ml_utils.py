@@ -28,7 +28,30 @@ _validate_cache: dict[str, tuple[float, bool]] = {}
 VALIDATE_CACHE_TTL_SECONDS = 3600  # ticker validity rarely changes within an hour
 
 # ---------- Currency / formatting ----------
+#
+# We detect currency by asking yfinance what currency the ticker ACTUALLY
+# trades in (an ISO code like "INR", "JPY", "USD"), rather than guessing
+# from the ticker's suffix. This works for any stock on any exchange
+# yfinance covers, not just a hand-picked list of exchanges.
 
+CURRENCY_SYMBOLS = {
+    "USD": "$", "INR": "₹", "GBP": "£",
+    "EUR": "€", "JPY": "¥", "CNY": "¥", "HKD": "HK$",
+    "CAD": "C$", "AUD": "A$", "NZD": "NZ$", "BRL": "R$",
+    "CHF": "CHF ", "KRW": "₩", "SGD": "S$", "TWD": "NT$",
+    "IDR": "Rp", "MXN": "MX$", "ZAR": "R", "SEK": "kr",
+    "NOK": "kr", "DKK": "kr", "THB": "฿", "MYR": "RM",
+    "PHP": "₱", "VND": "₫", "TRY": "₺", "RUB": "₽",
+    "PLN": "zł", "ILS": "₪", "AED": "AED ", "SAR": "SAR ",
+    "QAR": "QAR ", "KWD": "KWD ", "EGP": "E£", "PKR": "₨",
+    "BDT": "৳", "LKR": "Rs", "CLP": "CLP$", "COP": "COL$",
+    "ARS": "AR$", "PEN": "S/", "CZK": "Kč", "HUF": "Ft",
+    "RON": "lei", "BGN": "лв", "ISK": "kr", "UAH": "₴",
+    "NGN": "₦", "KES": "KSh", "GHS": "GH₵",
+}
+
+# Fallback suffix map — only used if the live yfinance currency lookup
+# fails (network hiccup, ticker briefly unresolvable, etc.)
 CURRENCY_MAP = {
     ".NS": "₹", ".BO": "₹",
     ".L": "£",
@@ -48,13 +71,48 @@ CURRENCY_MAP = {
     ".MX": "MX$",
 }
 
+_currency_cache: dict[str, tuple[float, str]] = {}
+CURRENCY_CACHE_TTL_SECONDS = 3600  # a ticker's trading currency doesn't change intraday
 
-def get_currency_symbol(ticker: str) -> str:
+
+def _suffix_fallback_symbol(ticker: str) -> str:
     ticker = ticker.upper()
     for suffix, symbol in CURRENCY_MAP.items():
         if ticker.endswith(suffix):
             return symbol
     return "$"
+
+
+def get_currency_symbol(ticker: str) -> str:
+    """Returns the correct currency symbol for ANY ticker by asking yfinance
+    what currency it actually trades in, instead of guessing from the
+    ticker's suffix. Falls back to a suffix map only if the live lookup
+    fails, and falls back to "$" only if both fail."""
+    now = time.time()
+    if ticker in _currency_cache:
+        cached_at, symbol = _currency_cache[ticker]
+        if now - cached_at < CURRENCY_CACHE_TTL_SECONDS:
+            return symbol
+
+    symbol = None
+    try:
+        info = yf.Ticker(ticker).fast_info
+        currency_code = info.get("currency") if hasattr(info, "get") else getattr(info, "currency", None)
+        if currency_code:
+            currency_code = currency_code.upper()
+            # GBp/GBX = British pence (LSE quirk) — display as pounds
+            if currency_code in ("GBP", "GBX", "GBP."):
+                symbol = "£"
+            else:
+                symbol = CURRENCY_SYMBOLS.get(currency_code)
+    except Exception:
+        symbol = None
+
+    if not symbol:
+        symbol = _suffix_fallback_symbol(ticker)
+
+    _currency_cache[ticker] = (now, symbol)
+    return symbol
 
 
 def validate_ticker(ticker: str) -> bool:
@@ -380,4 +438,3 @@ TRENDING_TICKERS = {
 
 def get_trending_tickers() -> dict:
     return TRENDING_TICKERS
-
