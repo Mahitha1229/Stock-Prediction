@@ -395,11 +395,9 @@ def run_chat(user_input, history):
     try:
         MAX_TOOL_ROUNDS = 5
         for _ in range(MAX_TOOL_ROUNDS):
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
+            response = call_groq_with_retry(
+                messages,
                 tools=TOOLS,
-                tool_choice="auto",
                 temperature=0.1,
                 max_tokens=800,
             )
@@ -408,11 +406,9 @@ def run_chat(user_input, history):
             if not response_message.tool_calls:
                 return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
 
-            # Convert the Groq SDK's Pydantic response into a plain dict before
-            # appending — required so the next request can round-trip it correctly.
             messages.append({
                 "role": "assistant",
-                "content": response_message.content,
+                "content": response_message.content or "",
                 "tool_calls": [
                     {
                         "id": tc.id,
@@ -437,8 +433,6 @@ def run_chat(user_input, history):
                     "name": fn_name,
                     "content": result,
                 })
-            # loop again — tools are available on every round, so chained
-            # calls like resolve_ticker -> get_stock_price both work
 
         return "I had trouble getting a complete answer — please try rephrasing your question."
 
