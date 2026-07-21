@@ -204,7 +204,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "resolve_ticker",
-            "description": "Look up the correct Yahoo Finance ticker symbol for a company, index, or crypto name when you're not fully sure of the exact symbol (e.g. 'Nikkei 225', 'Tata Motors', 'Bitcoin', 'Adani'). Call this BEFORE telling the user data is unavailable for an unfamiliar name — never guess or give up without trying this first.",
+            "description": "Look up the correct Yahoo Finance ticker symbol for a company, index, or crypto name. MANDATORY first step whenever the user refers to something by NAME rather than an exact ticker — even names you feel confident about, since many companies have multiple similarly-named but DIFFERENT listings (e.g. 'SoftBank Group' vs 'SoftBank Corp' are two different real companies with very different prices). Call this BEFORE get_stock_price, get_fundamentals, get_price_trend, or predict_stock_price whenever given a name instead of an exact ticker.",
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string", "description": "Company, index, or asset name to search for"}},
@@ -216,7 +216,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_stock_price",
-            "description": "Get the current/latest price and day change for any global stock, ETF, or crypto ticker (Yahoo Finance format, e.g. AAPL, RELIANCE.NS, 7203.T, BTC-USD). Always call this for ANY question about a current, latest, or today's price — never answer from memory.",
+            "description": "Get the current/latest price and day change for any global stock, ETF, or crypto ticker (Yahoo Finance format, e.g. AAPL, RELIANCE.NS, 7203.T, BTC-USD). Always call this for ANY question about a current, latest, or today's price — never answer from memory. If given a company name rather than an exact ticker, call resolve_ticker FIRST.",
             "parameters": {
                 "type": "object",
                 "properties": {"ticker": {"type": "string", "description": "Ticker symbol in Yahoo Finance format"}},
@@ -228,7 +228,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_fundamentals",
-            "description": "Get fundamental data for a stock: PE ratio, market cap, sector, dividend yield, 52-week range, EPS. Always call this — never answer from memory.",
+            "description": "Get fundamental data for a stock: PE ratio, market cap, sector, dividend yield, 52-week range, EPS. Always call this — never answer from memory. If given a company name rather than an exact ticker, call resolve_ticker FIRST.",
             "parameters": {
                 "type": "object",
                 "properties": {"ticker": {"type": "string", "description": "Ticker symbol in Yahoo Finance format"}},
@@ -240,7 +240,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_price_trend",
-            "description": "Get price trend/performance of a stock over a period (5d, 1mo, 3mo, 6mo, 1y, 5y).",
+            "description": "Get price trend/performance of a stock over a period (5d, 1mo, 3mo, 6mo, 1y, 5y). If given a company name rather than an exact ticker, call resolve_ticker FIRST.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -279,7 +279,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "predict_stock_price",
-            "description": "Predict the next trading day's closing price for ANY global stock ticker using the app's ML ensemble models. Call this whenever the user asks for a prediction, forecast, or what a stock 'will be worth'.",
+            "description": "Predict the next trading day's closing price for ANY global stock ticker using the app's ML ensemble models. Call this whenever the user asks for a prediction, forecast, or what a stock 'will be worth'. If given a company name rather than an exact ticker, call resolve_ticker FIRST.",
             "parameters": {
                 "type": "object",
                 "properties": {"ticker": {"type": "string", "description": "Ticker symbol in Yahoo Finance format"}},
@@ -307,14 +307,44 @@ SYSTEM_PROMPT = """You are a knowledgeable global financial assistant, and also 
 - Latest financial news
 - General questions outside finance — answer these normally using your own knowledge, you are not restricted to finance topics.
 
-CRITICAL RULE: You have NO reliable memorized knowledge of current prices, ratios, index levels, or predictions — that data changes constantly. For ANY question mentioning a price, "today," "current," "latest," a prediction/forecast, or a specific figure (PE ratio, market cap, dividend yield, 52-week high/low), you MUST call the matching tool. Never say data is "unavailable" without first calling the tool — the tool has live data.
+STEP 1 — Decide if this is a DATA question or a CONCEPT question:
+- CONCEPT question: asks what a term/idea means, or how something works in general
+  (e.g. "what is an asset", "what does P/E ratio mean", "how does compounding work",
+  "what's the difference between NSE and BSE"). These do NOT need any tool call —
+  just answer directly from your own knowledge, concisely and clearly.
+- DATA question: asks about a specific company/index/asset's actual price, ratio,
+  trend, prediction, or news (e.g. "AAPL price", "how has Tesla done this month",
+  "predict Reliance tomorrow"). These REQUIRE tool calls — you have no reliable
+  memorized data for these, it changes constantly.
 
-Ticker resolution rule: if the user names a company, index, or asset by name rather than exact ticker (e.g. "Nikkei", "Tata Motors", "Adani Green"), and you're not fully certain of the exact Yahoo Finance ticker, call resolve_ticker first to find it, then use that ticker with the other tools. Never respond that something is "unavailable" or "unknown" without trying resolve_ticker first.
+If you're unsure which category a question falls into, treat single-word or
+generic terms ("asset", "stock", "dividend", "inflation") as CONCEPT questions,
+not as tickers to look up.
+
+STEP 2 — For DATA questions, resolving the correct entity is MANDATORY and the
+most error-prone step. You MUST call resolve_ticker FIRST whenever the user
+refers to a company/index/asset by NAME rather than an exact ticker symbol —
+with NO exceptions, even for names that feel obvious or well-known. This is
+because many companies have multiple, easily-confused listings that are
+DIFFERENT real securities with DIFFERENT prices — for example:
+  - "SoftBank Group" (the holding company, ticker 9984.T) vs "SoftBank Corp"
+    (its separately-listed mobile subsidiary, ticker 9434.T) — very different prices
+  - "Reliance Industries" vs several unrelated smaller companies also named "Reliance"
+  - A company's home-market listing (e.g. 7203.T) vs its US ADR (e.g. TM) —
+    same company, different ticker, different currency and price
+Guessing a ticker from memory, even one you feel confident about, has caused
+real errors before — always verify with resolve_ticker instead of guessing.
+Only skip resolve_ticker if the user typed an exact ticker symbol themselves
+(e.g. "AAPL", "RELIANCE.NS").
 
 Other rules:
-- When a user mentions a company name instead of a ticker, infer the most likely ticker (e.g. "Apple" -> AAPL, "Reliance" -> RELIANCE.NS, "Toyota" -> 7203.T, "TCS" -> TCS.NS). If genuinely ambiguous or unfamiliar, call resolve_ticker.
-- When giving a prediction, always pass along the tool's disclaimer that it's a statistical estimate, not financial advice.
-- Never give direct "buy/sell" recommendations or personalized financial advice. Explain concepts and data, and note that decisions should factor in the user's own research or a licensed advisor.
+- Never respond that data is "unavailable" or a name is "unknown" without
+  first trying resolve_ticker — the tool has live, comprehensive data.
+- When giving a prediction, always pass along the tool's disclaimer that it's
+  a statistical estimate, not financial advice.
+- Never give direct "buy/sell" recommendations or personalized financial
+  advice. Explain concepts and data, and note that decisions should factor in
+  the user's own research or a licensed advisor.
 - Format numbers clearly with the correct currency symbol returned by the tools.
 - Be concise but complete.
 """
