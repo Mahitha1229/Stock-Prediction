@@ -79,21 +79,58 @@ export default function Dashboard() {
     setSearchResults([])
   }
 
+  // Live search-as-you-type, debounced so we don't hit /search on every keystroke.
+  useEffect(() => {
+    const query = inputValue.trim()
+
+    // Don't re-search right after picking a result (inputValue === selected symbol)
+    if (!query || query.length < 2) {
+      setSearchResults([])
+      setShowResults(false)
+      return
+    }
+
+    let cancelled = false
+    setSearching(true)
+
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchTickers(query)
+        if (cancelled) return
+        setSearchResults(results)
+        setShowResults(results.length > 0)
+      } catch {
+        if (!cancelled) {
+          setSearchResults([])
+          setShowResults(false)
+        }
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [inputValue])
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     const query = inputValue.trim()
     if (!query) return
 
+    // If the dropdown already has results showing, Enter/Go picks the top match.
+    if (searchResults.length > 0) {
+      selectTicker(searchResults[0].symbol)
+      return
+    }
+
     setSearching(true)
     try {
       const results = await searchTickers(query)
-      if (results.length === 1) {
+      if (results.length > 0) {
         selectTicker(results[0].symbol)
-        return
-      }
-      if (results.length > 1) {
-        setSearchResults(results)
-        setShowResults(true)
         return
       }
     } catch {
@@ -122,6 +159,7 @@ export default function Dashboard() {
               onFocus={() => { if (searchResults.length > 0) setShowResults(true) }}
               placeholder="Search ticker (e.g. AAPL, RELIANCE.NS)"
               style={{ flex: 1 }}
+              autoComplete="off"
             />
             <button className="ghost" type="submit" disabled={searching}>
               {searching ? '…' : 'Go'}
@@ -150,6 +188,11 @@ export default function Dashboard() {
                   boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                 }}
               >
+                {searching && (
+                  <div style={{ padding: '8px 12px', color: 'var(--text-dim)', fontSize: 12 }}>
+                    Searching…
+                  </div>
+                )}
                 {searchResults.map((r) => (
                   <button
                     key={r.symbol}
