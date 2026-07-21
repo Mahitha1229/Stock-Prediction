@@ -115,6 +115,13 @@ def get_currency_symbol(ticker: str) -> str:
     return symbol
 
 
+def is_index_ticker(ticker: str) -> bool:
+    """Yahoo prefixes indices with '^' (e.g. ^NSEI, ^GSPC). Indices don't
+    have meaningful volume data, so training a price-prediction model on
+    them isn't meaningful the way it is for a single stock."""
+    return ticker.strip().upper().startswith("^")
+
+
 def validate_ticker(ticker: str) -> bool:
     now = time.time()
     if ticker in _validate_cache:
@@ -261,6 +268,25 @@ def resolve_ticker(query: str) -> list[dict]:
         data = resp.json()
 
         query_lower = query.strip().lower()
+
+        # Exchanges considered "primary" real listings — OTC/pink-sheet
+        # duplicates and foreign depositary receipts (F suffix on Frankfurt,
+        # SAO DRs, PNK, etc.) get ranked below these when names tie.
+        PRIMARY_EXCHANGES = {
+            "NMS", "NYQ", "NGM", "NCM",  # US: Nasdaq / NYSE
+            "NSI", "BSE",                 # India
+            "JPX", "TYO",                 # Japan
+            "LSE",                        # London
+            "GER",                         # Xetra (Germany's primary exchange)
+            "HKG",                        # Hong Kong
+            "SHH", "SHZ",                  # China
+            "KSC", "KOE",                  # Korea
+            "ASX",                         # Australia
+            "TOR",                         # Canada
+            "PAR", "AMS", "MIL", "MCE",   # major EU exchanges
+        }
+        LOW_QUALITY_EXCHANGES = {"PNK", "OTC", "CCC"}  # pink sheets, crypto-pair noise, etc.
+
         matches = []
         for r in data.get("quotes", []):
             symbol = r.get("symbol")
@@ -268,6 +294,7 @@ def resolve_ticker(query: str) -> list[dict]:
                 continue
             name = r.get("shortname") or r.get("longname") or symbol
             quote_type = r.get("quoteType", "")
+            exchange = r.get("exchange", "")
             name_lower = name.lower()
 
             score = 0
@@ -277,16 +304,27 @@ def resolve_ticker(query: str) -> list[dict]:
                 score += 50
             elif query_lower in name_lower:
                 score += 20
-            elif symbol.lower().startswith(query_lower):
+            elif symbol.lstrip("^").lower().startswith(query_lower):
                 score += 15
 
             if quote_type == "EQUITY":
                 score += 30
 
+            if exchange in PRIMARY_EXCHANGES:
+                score += 25
+            elif exchange in LOW_QUALITY_EXCHANGES:
+                score -= 15
+
+            # Frankfurt/other secondary-listing suffixes (.F) on symbols
+            # that already look like they're a foreign depositary receipt
+            # of something with a cleaner home listing — slight penalty
+            if symbol.upper().endswith(".F") or symbol.upper().endswith(".SA"):
+                score -= 10
+
             matches.append({
                 "symbol": symbol,
                 "name": name,
-                "exchange": r.get("exchange"),
+                "exchange": exchange,
                 "type": quote_type,
                 "_score": score,
             })
