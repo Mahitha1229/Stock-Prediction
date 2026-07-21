@@ -371,21 +371,23 @@ def run_chat(user_input, history):
     messages.append({"role": "user", "content": user_input})
 
     try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.1,
-            max_tokens=800,
-        )
-        response_message = response.choices[0].message
+        MAX_TOOL_ROUNDS = 5
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+                temperature=0.1,
+                max_tokens=800,
+            )
+            response_message = response.choices[0].message
 
-        if response_message.tool_calls:
-            # Convert the Groq SDK's Pydantic response object into a plain dict
-            # before appending — sending the raw object back corrupts the
-            # conversation history and makes the model try to call tools again
-            # in the follow-up request, which has no `tools` param and fails.
+            if not response_message.tool_calls:
+                return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
+
+            # Convert the Groq SDK's Pydantic response into a plain dict before
+            # appending — required so the next request can round-trip it correctly.
             messages.append({
                 "role": "assistant",
                 "content": response_message.content,
@@ -401,6 +403,7 @@ def run_chat(user_input, history):
                     for tc in response_message.tool_calls
                 ],
             })
+
             for tool_call in response_message.tool_calls:
                 fn_name = tool_call.function.name
                 fn_args = json.loads(tool_call.function.arguments)
@@ -412,17 +415,10 @@ def run_chat(user_input, history):
                     "name": fn_name,
                     "content": result,
                 })
-            second_response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                temperature=0.1,
-                max_tokens=800,
-            )
-            return second_response.choices[0].message.content or (
-                "I looked that up but couldn't form a reply — try rephrasing your question."
-            )
+            # loop again — tools are available on every round, so chained
+            # calls like resolve_ticker -> get_stock_price both work
 
-        return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
+        return "I had trouble getting a complete answer — please try rephrasing your question."
 
     except Exception as e:
         return f"Sorry, something went wrong: {str(e)}"
