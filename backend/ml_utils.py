@@ -226,8 +226,9 @@ def resolve_ticker(query: str) -> list[dict]:
                 "_score": score,
             })
 
-        # Drop zero-score junk like "OEU.F" for a query like "reliance"
-        matches = [m for m in matches if m["_score"] > 0] or matches
+        # Drop zero-score junk (unrelated matches) when we have better options
+        filtered = [m for m in matches if m["_score"] > 0]
+        matches = filtered if filtered else matches
 
         matches.sort(key=lambda m: m["_score"], reverse=True)
         for m in matches:
