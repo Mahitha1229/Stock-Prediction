@@ -84,7 +84,7 @@ export default function Dashboard() {
     const query = inputValue.trim()
 
     // Don't re-search right after picking a result (inputValue === selected symbol)
-    if (!query || query.length < 3) {
+    if (!query || query.length < 2) {
       setSearchResults([])
       setShowResults(false)
       return
