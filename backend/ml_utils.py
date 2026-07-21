@@ -246,103 +246,60 @@ def load_models() -> dict:
     return _models_cache
 
 
-def _search_yahoo(query: str) -> list[dict]:
+def resolve_ticker(query: str) -> list[dict]:
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search"
-        params = {"q": query, "quotesCount": 15, "newsCount": 0, "enableFuzzyQuery": True}
+        params = {
+            "q": query,
+            "quotesCount": 20,
+            "newsCount": 0,
+            "enableFuzzyQuery": True,
+        }
         headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, params=params, headers=headers, timeout=5)
+        resp = requests.get(url, params=params, headers=headers, timeout=6)
         resp.raise_for_status()
         data = resp.json()
-        results = []
+
+        query_lower = query.strip().lower()
+        matches = []
         for r in data.get("quotes", []):
             symbol = r.get("symbol")
             if not symbol:
                 continue
-            results.append({
+            name = r.get("shortname") or r.get("longname") or symbol
+            quote_type = r.get("quoteType", "")
+            name_lower = name.lower()
+
+            score = 0
+            if name_lower == query_lower:
+                score += 100
+            elif name_lower.startswith(query_lower):
+                score += 50
+            elif query_lower in name_lower:
+                score += 20
+            elif symbol.lower().startswith(query_lower):
+                score += 15
+
+            if quote_type == "EQUITY":
+                score += 30
+
+            matches.append({
                 "symbol": symbol,
-                "name": r.get("shortname") or r.get("longname") or symbol,
+                "name": name,
                 "exchange": r.get("exchange"),
-                "type": r.get("quoteType", ""),
+                "type": quote_type,
+                "_score": score,
             })
-        return results
+
+        filtered = [m for m in matches if m["_score"] > 0]
+        matches = filtered if filtered else matches
+
+        matches.sort(key=lambda m: m["_score"], reverse=True)
+        for m in matches:
+            m.pop("_score", None)
+        return matches[:8]
     except Exception:
         return []
-
-
-def _search_openfigi_names(query: str) -> list[str]:
-    """OpenFIGI is very good at matching partial/fuzzy company names to
-    full canonical legal names (e.g. "relia" -> "RELIANCE INDUSTRIES LTD").
-    We use it ONLY for that name-expansion step, not for tickers directly —
-    guessing OpenFIGI's internal exchange codes turned out to be unreliable.
-    """
-    try:
-        resp = requests.post(
-            "https://api.openfigi.com/v3/search",
-            json={"query": query},
-            headers={"Content-Type": "application/json"},
-            timeout=5,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        names, seen = [], set()
-        for item in data.get("data", [])[:15]:
-            name = item.get("name") or item.get("securityDescription")
-            if name and name.lower() not in seen:
-                seen.add(name.lower())
-                names.append(name)
-        return names
-    except Exception:
-        return []
-
-
-def resolve_ticker(query: str) -> list[dict]:
-    query_lower = query.strip().lower()
-    if not query_lower:
-        return []
-
-    # Step 1: direct Yahoo search on exactly what the user typed (fast path)
-    direct_results = _search_yahoo(query)
-
-    # Step 2: ask OpenFIGI for canonical full names matching the (possibly
-    # partial) query, then re-search Yahoo using those full names — Yahoo's
-    # search is much more accurate on full company names than fragments.
-    # Capped to top 3 names to keep total latency reasonable.
-    figi_names = _search_openfigi_names(query)
-    expanded_results: list[dict] = []
-    if figi_names:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            futures = [executor.submit(_search_yahoo, name) for name in figi_names[:3]]
-            for f in futures:
-                expanded_results.extend(f.result())
-
-    combined: dict[str, dict] = {}
-    for r in direct_results + expanded_results:
-        combined.setdefault(r["symbol"], r)
-
-    scored = []
-    for symbol, r in combined.items():
-        name_lower = (r.get("name") or "").lower()
-        score = 0
-        if name_lower == query_lower:
-            score += 100
-        elif name_lower.startswith(query_lower):
-            score += 50
-        elif query_lower in name_lower:
-            score += 20
-        elif symbol.lower().startswith(query_lower):
-            score += 15
-
-        if str(r.get("type", "")).upper() == "EQUITY":
-            score += 30
-
-        scored.append((score, r))
-
-    filtered = [s for s in scored if s[0] > 0]
-    scored = filtered if filtered else scored
-    scored.sort(key=lambda s: s[0], reverse=True)
-
-    return [r for _, r in scored[:8]]
 
 
 def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
