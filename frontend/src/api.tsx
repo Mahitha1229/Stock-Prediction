@@ -3,7 +3,9 @@ import axios from 'axios'
 export const API_BASE = 'http://localhost:8000'
 export const WS_BASE = 'ws://localhost:8000'
 
-export const api = axios.create({ baseURL: API_BASE })
+// timeout added so a hung backend/yfinance call fails after 20s instead of
+// leaving the UI spinner stuck forever
+export const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -45,12 +47,15 @@ export async function login(username: string, password: string) {
   form.append('password', password)
   const { data } = await axios.post(`${API_BASE}/auth/login`, form, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    timeout: 20000,
   })
   return data.access_token as string
 }
 
 export async function register(username: string, password: string) {
-  const { data } = await axios.post(`${API_BASE}/auth/register`, { username, password })
+  const { data } = await axios.post(`${API_BASE}/auth/register`, { username, password }, {
+    timeout: 20000,
+  })
   return data.message as string
 }
 
@@ -64,17 +69,33 @@ export async function fetchPrediction(ticker: string) {
   return data as Prediction
 }
 
+/**
+ * Polls /predict until the model finishes training (status: "done").
+ * - Only calls onUpdate with a FINISHED result — intermediate "training"
+ *   responses are ignored so the UI never renders a half-empty prediction card.
+ * - Caps total polling time (maxAttempts * intervalMs) so a ticker that
+ *   never finishes training (e.g. bad/illiquid symbol) fails loudly instead
+ *   of polling forever.
+ */
 export async function fetchPredictionWithPolling(
   ticker: string,
   onUpdate: (p: Prediction) => void,
   isCancelled: () => boolean,
   intervalMs = 2000,
+  maxAttempts = 60, // ~2 minutes total
 ) {
-  while (!isCancelled()) {
+  let attempts = 0
+  while (!isCancelled() && attempts < maxAttempts) {
     const pred = await fetchPrediction(ticker)
-    onUpdate(pred)
-    if (pred.status === 'done') return
+    if (pred.status === 'done') {
+      onUpdate(pred)
+      return
+    }
+    attempts++
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+  if (!isCancelled()) {
+    throw new Error('Prediction is taking longer than expected for this ticker')
   }
 }
 
@@ -111,6 +132,7 @@ export function openPriceSocket(ticker: string, onMessage: (q: Quote) => void) {
   ws.onmessage = (event) => onMessage(JSON.parse(event.data))
   return ws
 }
+
 export async function fetchTrendingTickers() {
   const { data } = await api.get('/trending-tickers')
   return data.trending as Record<string, string[]>
