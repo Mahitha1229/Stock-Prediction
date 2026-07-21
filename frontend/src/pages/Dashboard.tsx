@@ -266,7 +266,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {prediction && (
+          {prediction && prediction.status === 'done' && (
             <div className="card">
               <div className="label">Prediction for {prediction.prediction_date}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
