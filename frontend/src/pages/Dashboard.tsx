@@ -87,6 +87,7 @@ export default function Dashboard() {
     if (!query || query.length < 2) {
       setSearchResults([])
       setShowResults(false)
+      setSearching(false)
       return
     }
 
