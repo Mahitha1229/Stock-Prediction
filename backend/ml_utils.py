@@ -246,47 +246,12 @@ def load_models() -> dict:
     return _models_cache
 
 
-import concurrent.futures
-
-# Best-effort mapping from OpenFIGI's exchange codes to Yahoo Finance's
-# ticker suffix convention. OpenFIGI's codes aren't perfectly documented
-# publicly, so this covers the major/common exchanges; unmapped exchanges
-# are skipped rather than guessed wrong.
-OPENFIGI_EXCHANGE_TO_YAHOO_SUFFIX = {
-    "US": "", "UN": "", "UW": "", "UR": "", "UA": "",  # US listings, no suffix
-    "LN": ".L",                # London
-    "GR": ".DE", "GY": ".DE",  # Germany / Xetra
-    "FP": ".PA",               # Paris
-    "NA": ".AS",               # Amsterdam
-    "IM": ".MI",               # Milan
-    "SM": ".MC",               # Madrid
-    "PL": ".LS",               # Lisbon
-    "JT": ".T",                # Tokyo
-    "HK": ".HK",               # Hong Kong
-    "KS": ".KS",                # Korea (KOSPI)
-    "KQ": ".KQ",                # Korea (KOSDAQ)
-    "SP": ".SI",                # Singapore
-    "AU": ".AX",                # Australia
-    "SW": ".SW",                # Switzerland
-    "CN": ".TO",                # Toronto
-    "CT": ".V",                 # TSX Venture
-    "BZ": ".SA",                # Brazil (Sao Paulo)
-    "MM": ".MX",                # Mexico
-    "NZ": ".NZ",                # New Zealand
-    "IN": ".NS",                # India NSE (best-effort)
-    "IB": ".BO",                # India BSE (best-effort)
-    "SS": ".SS",                # Shanghai
-    "SZ": ".SZ",                # Shenzhen
-    "TT": ".TW",                # Taiwan
-}
-
-
 def _search_yahoo(query: str) -> list[dict]:
     try:
         url = "https://query1.finance.yahoo.com/v1/finance/search"
-        params = {"q": query, "quotesCount": 20, "newsCount": 0, "enableFuzzyQuery": True}
+        params = {"q": query, "quotesCount": 15, "newsCount": 0, "enableFuzzyQuery": True}
         headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, params=params, headers=headers, timeout=6)
+        resp = requests.get(url, params=params, headers=headers, timeout=5)
         resp.raise_for_status()
         data = resp.json()
         results = []
@@ -305,38 +270,28 @@ def _search_yahoo(query: str) -> list[dict]:
         return []
 
 
-def _search_openfigi(query: str) -> list[dict]:
-    """OpenFIGI (Bloomberg's free identifier database) — much deeper global
-    coverage than Yahoo's search, especially for less mainstream names.
-    Free, no API key required at low volume."""
+def _search_openfigi_names(query: str) -> list[str]:
+    """OpenFIGI is very good at matching partial/fuzzy company names to
+    full canonical legal names (e.g. "relia" -> "RELIANCE INDUSTRIES LTD").
+    We use it ONLY for that name-expansion step, not for tickers directly —
+    guessing OpenFIGI's internal exchange codes turned out to be unreliable.
+    """
     try:
         resp = requests.post(
             "https://api.openfigi.com/v3/search",
             json={"query": query},
             headers={"Content-Type": "application/json"},
-            timeout=6,
+            timeout=5,
         )
         resp.raise_for_status()
         data = resp.json()
-        results = []
+        names, seen = [], set()
         for item in data.get("data", [])[:15]:
-            ticker = item.get("ticker")
-            exch_code = item.get("exchCode")
-            name = item.get("name") or item.get("securityDescription") or ticker
-            security_type = item.get("securityType2") or item.get("securityType") or ""
-            if not ticker or not exch_code:
-                continue
-            suffix = OPENFIGI_EXCHANGE_TO_YAHOO_SUFFIX.get(exch_code)
-            if suffix is None:
-                continue  # unmapped exchange — skip rather than guess wrong
-            symbol = f"{ticker}{suffix}"
-            results.append({
-                "symbol": symbol,
-                "name": name,
-                "exchange": exch_code,
-                "type": "EQUITY" if "equity" in security_type.lower() or "common" in security_type.lower() else security_type,
-            })
-        return results
+            name = item.get("name") or item.get("securityDescription")
+            if name and name.lower() not in seen:
+                seen.add(name.lower())
+                names.append(name)
+        return names
     except Exception:
         return []
 
@@ -346,17 +301,23 @@ def resolve_ticker(query: str) -> list[dict]:
     if not query_lower:
         return []
 
-    # Query both sources concurrently so combining them doesn't double the wait time
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        yahoo_future = executor.submit(_search_yahoo, query)
-        figi_future = executor.submit(_search_openfigi, query)
-        yahoo_results = yahoo_future.result()
-        figi_results = figi_future.result()
+    # Step 1: direct Yahoo search on exactly what the user typed (fast path)
+    direct_results = _search_yahoo(query)
 
-    # Merge + dedupe by symbol — Yahoo entries take priority on collision
-    # since they're guaranteed yfinance-compatible
+    # Step 2: ask OpenFIGI for canonical full names matching the (possibly
+    # partial) query, then re-search Yahoo using those full names — Yahoo's
+    # search is much more accurate on full company names than fragments.
+    # Capped to top 3 names to keep total latency reasonable.
+    figi_names = _search_openfigi_names(query)
+    expanded_results: list[dict] = []
+    if figi_names:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(_search_yahoo, name) for name in figi_names[:3]]
+            for f in futures:
+                expanded_results.extend(f.result())
+
     combined: dict[str, dict] = {}
-    for r in yahoo_results + figi_results:
+    for r in direct_results + expanded_results:
         combined.setdefault(r["symbol"], r)
 
     scored = []
