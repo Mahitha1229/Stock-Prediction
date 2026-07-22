@@ -3,6 +3,61 @@ from datetime import datetime
 
 PRED_DB_PATH = "predictions.db"
 
+# Add to prediction_tracker.py
+
+from datetime import datetime
+import ml_utils  # for get_stock_history
+
+
+def _get_actual_close(ticker: str, target_date: str):
+    """Fetch actual close price for a given date. Returns None if the
+    market hasn't reached that date yet, or if it was a non-trading day
+    with no nearby data."""
+    try:
+        target = datetime.strptime(target_date, "%Y-%m-%d").date()
+        if target > datetime.now().date():
+            return None  # prediction target is still in the future
+
+        # Pull a small window around the target date so weekends/holidays
+        # don't cause a miss — yfinance history index is trading days only.
+        hist = ml_utils.get_stock_history(ticker, period="6mo")
+        if hist.empty:
+            return None
+
+        hist = hist.copy()
+        hist.index = hist.index.tz_localize(None) if hist.index.tz is not None else hist.index
+        target_ts = pd.Timestamp(target)
+
+        # Exact match first, else nearest trading day on/after target
+        if target_ts in hist.index:
+            return float(hist.loc[target_ts, "Close"])
+        later = hist[hist.index >= target_ts]
+        if not later.empty:
+            return float(later.iloc[0]["Close"])
+        return None
+    except Exception:
+        return None
+
+
+def get_predictions_with_accuracy(ticker: str, limit: int = 30) -> list[dict]:
+    """Same as get_predictions_for_ticker, but enriches each row with the
+    actual price (once available) and the prediction error."""
+    raw = get_predictions_for_ticker(ticker, limit=limit)
+    enriched = []
+    for row in raw:
+        actual = _get_actual_close(ticker, row["prediction_date"])
+        error_pct = None
+        status = "pending"
+        if actual is not None:
+            status = "resolved"
+            error_pct = round(((row["predicted_price"] - actual) / actual) * 100, 2)
+        enriched.append({
+            **row,
+            "actual_price": actual,
+            "error_pct": error_pct,
+            "status": status,
+        })
+    return enriched
 
 def _get_conn():
     conn = sqlite3.connect(PRED_DB_PATH)
