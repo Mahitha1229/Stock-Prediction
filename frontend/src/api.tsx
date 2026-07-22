@@ -133,6 +133,22 @@ export function openPriceSocket(ticker: string, onMessage: (q: Quote) => void) {
   return ws
 }
 
+export interface PredictionHistoryEntry {
+  prediction_date: string
+  predicted_price: number
+  currency_symbol: string
+  model_type: string
+  created_at: string
+  actual_price: number | null
+  error_pct: number | null
+  status: 'resolved' | 'pending'
+}
+
+export async function fetchPredictionHistory(ticker: string): Promise<PredictionHistoryEntry[]> {
+  const res = await api.get(`/stock/${ticker}/prediction-history`)
+  return res.data.history
+}
+
 export async function fetchTrendingTickers() {
   const { data } = await api.get('/trending-tickers')
   return data.trending as Record<string, string[]>
