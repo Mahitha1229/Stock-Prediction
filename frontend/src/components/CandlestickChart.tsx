@@ -135,6 +135,30 @@ if (
     chart.timeScale().fitContent();
     let upperLine: ReturnType<typeof series.createPriceLine> | null = null;
     let lowerLine: ReturnType<typeof series.createPriceLine> | null = null;
+
+    if (
+    livePrediction?.status === 'done' &&
+    livePrediction.confidence_low != null &&
+    livePrediction.confidence_high != null
+  ) {
+    upperLine = series.createPriceLine({
+      price: livePrediction.confidence_high,
+      color: '#E0A52C',
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: '95% upper',
+    });
+    lowerLine = series.createPriceLine({
+      price: livePrediction.confidence_low,
+      color: '#E0A52C',
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: '95% lower',
+    });
+  }
+  
     const handleResize = () => {
       if (containerRef.current) {
         chart.applyOptions({ width: containerRef.current.clientWidth });
