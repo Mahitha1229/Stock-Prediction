@@ -269,7 +269,7 @@ export default function Dashboard() {
           </div>
 
           {prediction && prediction.status === 'done' && (
-            <div className="card">
+          <div className="card card--prediction">
               <div className="label">Prediction for {prediction.prediction_date}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
                 <span className="price-lg">{prediction.currency_symbol}{prediction.predicted_price?.toFixed(2) ?? '—'}</span>
