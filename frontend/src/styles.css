@@ -412,3 +412,12 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
 .chat-panel--full .chat-bubble table {
   font-size: 13px;
 }
+.chat-messages {
+  overflow-y: auto;
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE/Edge */
+}
+
+.chat-messages::-webkit-scrollbar {
+  display: none;               /* Chrome, Safari, Edge (Chromium) */
+}
