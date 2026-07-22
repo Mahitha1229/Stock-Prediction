@@ -8,6 +8,7 @@ import CandlestickChart from '../components/CandlestickChart'
 import TickerTape from '../components/TickerTape'
 import Watchlist from '../components/Watchlist'
 import Chat from '../components/Chat'
+import PredictionHistory from '../components/PredictionHistory'
 
 export default function Dashboard() {
   const { username, logout } = useAuth()
