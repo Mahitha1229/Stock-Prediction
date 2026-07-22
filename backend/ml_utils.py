@@ -200,8 +200,9 @@ def _fetch_quote_finnhub(ticker: str) -> dict:
 def get_stock_history(ticker: str, period: str = "1y", interval: str = "1d"):
     hist = yf.Ticker(ticker).history(period=period, interval=interval)
     if not hist.empty:
-        hist = hist.dropna(subset=["Close"])
-    return hist
+        return hist.dropna(subset=["Close"])
+    # yfinance had nothing — try Twelve Data as a secondary source
+    return _fetch_history_twelvedata(ticker, period=period, interval=interval)
 
 
 def get_cached_stock_history(ticker: str, period: str = "60d", interval: str = "1d"):
