@@ -50,7 +50,7 @@ export default function PredictionHistory({ ticker, refreshKey }: { ticker: stri
                 {r.status === 'resolved' ? (
                   <span style={{ color: 'var(--text-secondary)' }}>✓ Resolved</span>
                 ) : (
-                  <span style={{ color: 'var(--text-dim)' }}>⏳ Pending</span>
+                  <span style={{ color: 'var(--text-dim)' }}> Pending</span>
                 )}
               </td>
             </tr>
