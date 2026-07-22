@@ -46,8 +46,8 @@ export default function PredictionHistory({ ticker, refreshKey }: { ticker: stri
               </td>
               <td>
                 {r.status === 'resolved'
-                  ? <span className="status-resolved">✓ Resolved</span>
-                  : <span className="status-pending">⏳ Pending</span>}
+                  ? <span className="status-resolved"> Resolved</span>
+                  : <span className="status-pending"> Pending</span>}
               </td>
             </tr>
           ))}
