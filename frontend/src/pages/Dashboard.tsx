@@ -309,7 +309,7 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-          <PredictionHistory ticker={ticker} refreshKey={prediction} />
+          <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} />
         </div>
 
         <div className="panel">
