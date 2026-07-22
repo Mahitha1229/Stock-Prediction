@@ -98,6 +98,40 @@ export default function CandlestickChart({
     if (predictedPoints.length > 0) predictedSeries.setData(predictedPoints);
     if (actualPoints.length > 0) actualSeries.setData(actualPoints);
 
+    // Confidence band for the live (in-flight) prediction, drawn as two
+// dashed horizontal guides on the candlestick series itself.
+if (
+  livePrediction?.status === 'done' &&
+  livePrediction.confidence_low != null &&
+  livePrediction.confidence_high != null
+) {
+  const upperLine = series.createPriceLine({
+    price: livePrediction.confidence_high,
+    color: '#E0A52C',
+    lineWidth: 1,
+    lineStyle: 2, // dashed
+    axisLabelVisible: true,
+    title: '95% upper',
+  });
+  const lowerLine = series.createPriceLine({
+    price: livePrediction.confidence_low,
+    color: '#E0A52C',
+    lineWidth: 1,
+    lineStyle: 2,
+    axisLabelVisible: true,
+    title: '95% lower',
+  });
+
+  // price lines aren't cleaned up by chart.remove() the way series are,
+  // so remove them explicitly on the next effect run / unmount
+  return () => {
+    series.removePriceLine(upperLine);
+    series.removePriceLine(lowerLine);
+    window.removeEventListener('resize', handleResize);
+    chart.remove();
+  };
+}
+
     chart.timeScale().fitContent();
 
     const handleResize = () => {
