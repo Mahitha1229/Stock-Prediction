@@ -413,13 +413,41 @@ def run_chat(user_input, history):
     try:
         MAX_TOOL_ROUNDS = 5
         for _ in range(MAX_TOOL_ROUNDS):
-            response = call_groq_with_retry(
-                messages,
-                tools=TOOLS,
-                temperature=0.1,
-                max_tokens=800,
-            )
-            response_message = response.choices[0].message
+            try:
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    temperature=0.1,
+                    max_tokens=800,
+                )
+                response_message = response.choices[0].message
+            except Exception as e:
+                # Groq failed to package the tool call, but often tells us
+                # what it tried to do — extract and run it ourselves.
+                recovered = extract_failed_tool_call(str(e))
+                if not recovered:
+                    raise
+                fn_name, fn_args = recovered
+                fn = AVAILABLE_FUNCTIONS.get(fn_name)
+                result = fn(**fn_args) if fn else json.dumps({"error": "Unknown tool"})
+                messages.append({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": "recovered_call_1",
+                        "type": "function",
+                        "function": {"name": fn_name, "arguments": json.dumps(fn_args)},
+                    }],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": "recovered_call_1",
+                    "name": fn_name,
+                    "content": result,
+                })
+                continue  # loop again, ask the model to now form a normal reply
 
             if not response_message.tool_calls:
                 return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
