@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tapeTickers, setTapeTickers] = useState<string[]>(['AAPL', 'MSFT', 'TSLA', 'NVDA', 'GOOGL'])
+  const [connStatus, setConnStatus] = useState<SocketStatus>('connecting')
 
   // Search dropdown state
   const [searchResults, setSearchResults] = useState<{ symbol: string; name: string; exchange?: string }[]>([])
