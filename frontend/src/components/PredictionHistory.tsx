@@ -16,42 +16,38 @@ export default function PredictionHistory({ ticker, refreshKey }: { ticker: stri
   }, [ticker, refreshKey])
 
   if (loading) return <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading prediction history…</div>
-  if (rows.length === 0) return null
+  if (rows.length === 0) return <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No predictions logged yet for {ticker}.</div>
 
   return (
     <div className="card">
       <div className="label">Prediction Accuracy History — {ticker}</div>
-      <table style={{ width: '100%', marginTop: 10, borderCollapse: 'collapse', fontSize: 13 }}>
+      <table className="history-table">
         <thead>
-          <tr style={{ color: 'var(--text-dim)', textAlign: 'left' }}>
-            <th style={{ padding: '4px 8px' }}>Target Date</th>
-            <th style={{ padding: '4px 8px' }}>Predicted</th>
-            <th style={{ padding: '4px 8px' }}>Actual</th>
-            <th style={{ padding: '4px 8px' }}>Error</th>
-            <th style={{ padding: '4px 8px' }}>Status</th>
+          <tr>
+            <th>Target Date</th>
+            <th>Predicted</th>
+            <th>Actual</th>
+            <th>Error</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.prediction_date} style={{ borderTop: '1px solid var(--border, #22262F)' }}>
-              <td style={{ padding: '6px 8px' }}>{r.prediction_date}</td>
-              <td style={{ padding: '6px 8px' }}>{r.currency_symbol}{r.predicted_price.toFixed(2)}</td>
-              <td style={{ padding: '6px 8px' }}>
-                {r.actual_price !== null ? `${r.currency_symbol}${r.actual_price.toFixed(2)}` : '—'}
-              </td>
-              <td style={{ padding: '6px 8px' }}>
+            <tr key={r.prediction_date}>
+              <td>{r.prediction_date}</td>
+              <td>{r.currency_symbol}{r.predicted_price.toFixed(2)}</td>
+              <td>{r.actual_price !== null ? `${r.currency_symbol}${r.actual_price.toFixed(2)}` : '—'}</td>
+              <td>
                 {r.error_pct !== null ? (
                   <span className={r.error_pct >= 0 ? 'up' : 'down'}>
                     {r.error_pct >= 0 ? '+' : ''}{r.error_pct}%
                   </span>
                 ) : '—'}
               </td>
-              <td style={{ padding: '6px 8px' }}>
-                {r.status === 'resolved' ? (
-                  <span style={{ color: 'var(--text-secondary)' }}>✓ Resolved</span>
-                ) : (
-                  <span style={{ color: 'var(--text-dim)' }}> Pending</span>
-                )}
+              <td>
+                {r.status === 'resolved'
+                  ? <span className="status-resolved">✓ Resolved</span>
+                  : <span className="status-pending">⏳ Pending</span>}
               </td>
             </tr>
           ))}
