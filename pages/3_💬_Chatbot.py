@@ -2,6 +2,7 @@ import os
 import json
 import random
 import time
+import re
 import streamlit as st
 import yfinance as yf
 import requests
