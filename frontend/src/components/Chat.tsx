@@ -39,8 +39,10 @@ export default function Chat() {
       <div className="label" style={{ marginBottom: 12 }}>Finance Assistant</div>
       <div className="chat-messages" ref={scrollRef}>
         {messages.map((m, i) => (
-          <div key={i} className={`chat-bubble chat-bubble--${m.role}`}>{m.content}</div>
-        ))}
+  <div key={i} className={`chat-bubble chat-bubble--${m.role}`}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+  </div>
+))}
         {busy && <div className="chat-typing">Thinking…</div>}
       </div>
       <form className="chat-input-row" onSubmit={handleSend}>
