@@ -55,6 +55,11 @@ def _train_and_store_prediction(ticker: str):
             "on_demand": bool(model_dict.get("on_demand")),
             "currency_symbol": ml.get_currency_symbol(ticker),
         }
+        pt.save_prediction(
+            ticker, prediction_date, result["predicted_price"],
+            result["currency_symbol"],
+            "on-demand" if result["on_demand"] else "curated",
+        )
         with _prediction_jobs_lock:
             _prediction_jobs[ticker] = {"status": "done", "data": result}
     except Exception as e:
