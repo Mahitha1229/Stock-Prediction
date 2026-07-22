@@ -399,3 +399,16 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
 }
+
+.chat-panel--full {
+  width: 100%;
+  max-width: 820px;
+  height: calc(100vh - 140px);
+}
+.chat-panel--full .chat-bubble {
+  max-width: 75%;
+  font-size: 14px;
+}
+.chat-panel--full .chat-bubble table {
+  font-size: 13px;
+}
