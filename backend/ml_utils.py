@@ -540,8 +540,15 @@ def predict_next_day(ticker: str, model_dict: dict):
     pred_scaled = np.zeros((1, len(features)))
     pred_scaled[0, 0] = ensemble_pred
     predicted_price = scaler.inverse_transform(pred_scaled)[0, 0]
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    return predicted_price, tomorrow
+
+    def _next_trading_day(d: datetime) -> datetime:
+        nxt = d + timedelta(days=1)
+        while nxt.weekday() >= 5:  # Sat=5, Sun=6
+            nxt += timedelta(days=1)
+        return nxt
+
+    target_date = _next_trading_day(datetime.now()).strftime("%Y-%m-%d")
+    return predicted_price, target_date
 
 # === Add this to ml_utils.py ===
 
