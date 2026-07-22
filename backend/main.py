@@ -178,27 +178,30 @@ def predict(ticker: str):
         predicted_price, prediction_date = ml.predict_next_day(ticker, model_dict)
         if predicted_price is None:
             raise HTTPException(status_code=422, detail=prediction_date)
+        currency_symbol = ml.get_currency_symbol(ticker)
+        pt.save_prediction(ticker, prediction_date, round(float(predicted_price), 2), currency_symbol, "curated")
         return {
             "ticker": ticker,
             "predicted_price": round(float(predicted_price), 2),
             "prediction_date": prediction_date,
             "on_demand": False,
-            "currency_symbol": ml.get_currency_symbol(ticker),
+            "currency_symbol": currency_symbol,
             "status": "done",
         }
- 
-    # Fast path 2: a fresh on-demand model is already cached on disk
+
     cached = ml.get_cached_on_demand_model(ticker)
     if cached:
         predicted_price, prediction_date = ml.predict_next_day(ticker, cached)
         if predicted_price is None:
             raise HTTPException(status_code=422, detail=prediction_date)
+        currency_symbol = ml.get_currency_symbol(ticker)
+        pt.save_prediction(ticker, prediction_date, round(float(predicted_price), 2), currency_symbol, "on-demand")
         return {
             "ticker": ticker,
             "predicted_price": round(float(predicted_price), 2),
             "prediction_date": prediction_date,
             "on_demand": True,
-            "currency_symbol": ml.get_currency_symbol(ticker),
+            "currency_symbol": currency_symbol,
             "status": "done",
         }
     
