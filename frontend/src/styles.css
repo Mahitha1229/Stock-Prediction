@@ -290,3 +290,23 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
   color: var(--text-dim);
   align-self: flex-start;
 }
+.chat-bubble table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.chat-bubble th, .chat-bubble td {
+  border: 1px solid var(--border, #22262F);
+  padding: 6px 10px;
+  text-align: left;
+}
+.chat-bubble th {
+  background: rgba(255,255,255,0.04);
+}
+.chat-bubble p {
+  margin: 6px 0;
+}
+.chat-bubble strong {
+  color: inherit;
+}
