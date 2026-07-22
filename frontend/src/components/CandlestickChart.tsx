@@ -1,11 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
-import { Candle } from '../api';
+import { Candle, Prediction, PredictionHistoryEntry } from '../api';
 
 export default function CandlestickChart({
   candles,
+  predictions = [],
+  livePrediction = null,
 }: {
   candles: Candle[];
+  predictions?: PredictionHistoryEntry[];
+  livePrediction?: Prediction | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -14,29 +18,18 @@ export default function CandlestickChart({
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: {
-          type: ColorType.Solid,
-          color: 'transparent',
-        },
+        background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#8890A0',
         fontFamily: 'IBM Plex Mono, monospace',
       },
       grid: {
-        vertLines: {
-          color: '#22262F',
-        },
-        horzLines: {
-          color: '#22262F',
-        },
+        vertLines: { color: '#22262F' },
+        horzLines: { color: '#22262F' },
       },
       width: containerRef.current.clientWidth,
       height: 380,
-      timeScale: {
-        borderColor: '#22262F',
-      },
-      rightPriceScale: {
-        borderColor: '#22262F',
-      },
+      timeScale: { borderColor: '#22262F' },
+      rightPriceScale: { borderColor: '#22262F' },
     });
 
     const series = chart.addCandlestickSeries({
@@ -57,13 +50,59 @@ export default function CandlestickChart({
       }))
     );
 
+    // Predicted price — amber scatter point(s), one per logged prediction
+    // plus the current in-flight prediction if it isn't logged yet.
+    const predictedSeries = chart.addLineSeries({
+      color: '#E0A52C',
+      lineVisible: false,
+      pointMarkersVisible: true,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+
+    // Actual resolved price — green scatter point(s), only for predictions
+    // whose target date has already passed and been resolved.
+    const actualSeries = chart.addLineSeries({
+      color: '#3DD68C',
+      lineVisible: false,
+      pointMarkersVisible: true,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+
+    const predictedPoints = predictions
+      .filter((p) => p.predicted_price != null)
+      .map((p) => ({ time: p.prediction_date, value: p.predicted_price }));
+
+    // Add the live (not-yet-logged) prediction if its date isn't already covered
+    if (
+      livePrediction?.status === 'done' &&
+      livePrediction.predicted_price != null &&
+      livePrediction.prediction_date &&
+      !predictions.some((p) => p.prediction_date === livePrediction.prediction_date)
+    ) {
+      predictedPoints.push({
+        time: livePrediction.prediction_date,
+        value: livePrediction.predicted_price,
+      });
+    }
+
+    // lightweight-charts requires ascending, de-duplicated time order
+    predictedPoints.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+
+    const actualPoints = predictions
+      .filter((p) => p.status === 'resolved' && p.actual_price != null)
+      .map((p) => ({ time: p.prediction_date, value: p.actual_price as number }))
+      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+
+    if (predictedPoints.length > 0) predictedSeries.setData(predictedPoints);
+    if (actualPoints.length > 0) actualSeries.setData(actualPoints);
+
     chart.timeScale().fitContent();
 
     const handleResize = () => {
       if (containerRef.current) {
-        chart.applyOptions({
-          width: containerRef.current.clientWidth,
-        });
+        chart.applyOptions({ width: containerRef.current.clientWidth });
       }
     };
 
@@ -73,15 +112,21 @@ export default function CandlestickChart({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [candles]);
+  }, [candles, predictions, livePrediction]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: '100%',
-        height: 380,
-      }}
-    />
+    <div>
+      <div ref={containerRef} style={{ width: '100%', height: 380 }} />
+      <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--text-dim)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E0A52C', display: 'inline-block' }} />
+          Predicted
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3DD68C', display: 'inline-block' }} />
+          Actual
+        </span>
+      </div>
+    </div>
   );
 }
