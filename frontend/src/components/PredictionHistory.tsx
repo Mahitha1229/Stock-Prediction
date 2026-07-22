@@ -1,20 +1,14 @@
-import { useEffect, useState } from 'react'
-import { fetchPredictionHistory, PredictionHistoryEntry } from '../api'
+import { PredictionHistoryEntry } from '../api'
 
-export default function PredictionHistory({ ticker, refreshKey }: { ticker: string; refreshKey?: unknown }) {
-  const [rows, setRows] = useState<PredictionHistoryEntry[]>([])
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetchPredictionHistory(ticker)
-      .then((data) => { if (!cancelled) setRows(data) })
-      .catch(() => { if (!cancelled) setRows([]) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [ticker, refreshKey])
-
+export default function PredictionHistory({
+  ticker,
+  rows,
+  loading,
+}: {
+  ticker: string
+  rows: PredictionHistoryEntry[]
+  loading: boolean
+}) {
   if (loading) return <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading prediction history…</div>
   if (rows.length === 0) return <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No predictions logged yet for {ticker}.</div>
 
