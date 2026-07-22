@@ -289,6 +289,12 @@ def prediction_history(ticker: str):
         actual_price = None
         if not hist.empty:
             match = hist[hist.index.strftime("%Y-%m-%d") == pred_date]
+            if match.empty:
+                pred_ts = pd.Timestamp(pred_date)
+                idx_naive = hist.index.tz_localize(None) if hist.index.tz is not None else hist.index
+                later = hist[idx_naive >= pred_ts]
+                if not later.empty:
+                    match = later.iloc[[0]]
             if not match.empty:
                 actual_price = round(float(match["Close"].iloc[0]), 2)
 
