@@ -10,6 +10,12 @@ import Watchlist from '../components/Watchlist'
 import Chat from '../components/Chat'
 import PredictionHistory from '../components/PredictionHistory'
 
+import {
+  Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
+  fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
+  fetchPredictionHistory,
+} from '../api'
+
 export default function Dashboard() {
   const { username, logout } = useAuth()
   const [ticker, setTicker] = useState('AAPL')
@@ -21,6 +27,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [tapeTickers, setTapeTickers] = useState<string[]>(['AAPL', 'MSFT', 'TSLA', 'NVDA', 'GOOGL'])
   const [connStatus, setConnStatus] = useState<SocketStatus>('connecting')
+  const [predictionHistory, setPredictionHistory] = useState<PredictionHistoryEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   // Search dropdown state
   const [searchResults, setSearchResults] = useState<{ symbol: string; name: string; exchange?: string }[]>([])
@@ -85,6 +93,16 @@ export default function Dashboard() {
     setShowResults(false)
     setSearchResults([])
   }
+
+  useEffect(() => {
+  let cancelled = false
+  setHistoryLoading(true)
+  fetchPredictionHistory(ticker)
+    .then((data) => { if (!cancelled) setPredictionHistory(data) })
+    .catch(() => { if (!cancelled) setPredictionHistory([]) })
+    .finally(() => { if (!cancelled) setHistoryLoading(false) })
+  return () => { cancelled = true }
+}, [ticker, prediction])
 
   // Live search-as-you-type, debounced so we don't hit /search on every keystroke.
   useEffect(() => {
@@ -274,7 +292,9 @@ export default function Dashboard() {
             <div style={{ marginTop: 16 }}>
               {loading && <div style={{ color: 'var(--text-dim)' }}>Loading chart…</div>}
               {error && <div className="error-text">{error}</div>}
-              {!loading && !error && candles.length > 0 && <CandlestickChart candles={candles} />}
+              {!loading && !error && candles.length > 0 && (
+  <CandlestickChart candles={candles} predictions={predictionHistory} livePrediction={prediction} />
+)}
             </div>
           </div>
 
