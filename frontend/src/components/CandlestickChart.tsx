@@ -158,7 +158,7 @@ if (
       title: '95% lower',
     });
   }
-  
+
     const handleResize = () => {
       if (containerRef.current) {
         chart.applyOptions({ width: containerRef.current.clientWidth });
@@ -167,11 +167,66 @@ if (
 
     window.addEventListener('resize', handleResize);
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-    };
-  }, [candles, predictions, livePrediction]);
+    useEffect(() => {
+  if (!containerRef.current) return;
+
+  const chart = createChart(containerRef.current, { /* ...unchanged... */ });
+  const series = chart.addCandlestickSeries({ /* ...unchanged... */ });
+  series.setData(/* ...unchanged... */);
+
+  const predictedSeries = chart.addLineSeries({ /* ...unchanged... */ });
+  const actualSeries = chart.addLineSeries({ /* ...unchanged... */ });
+
+  const predictedPoints = predictions /* ...unchanged... */;
+  // ... all the existing predictedPoints / actualPoints logic ...
+
+  if (predictedPoints.length > 0) predictedSeries.setData(predictedPoints);
+  if (actualPoints.length > 0) actualSeries.setData(actualPoints);
+
+  chart.timeScale().fitContent();
+
+  // 👇 ADD SNIPPET 1 HERE — right after fitContent(), before handleResize
+  let upperLine: ReturnType<typeof series.createPriceLine> | null = null;
+  let lowerLine: ReturnType<typeof series.createPriceLine> | null = null;
+
+  if (
+    livePrediction?.status === 'done' &&
+    livePrediction.confidence_low != null &&
+    livePrediction.confidence_high != null
+  ) {
+    upperLine = series.createPriceLine({
+      price: livePrediction.confidence_high,
+      color: '#E0A52C',
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: '95% upper',
+    });
+    lowerLine = series.createPriceLine({
+      price: livePrediction.confidence_low,
+      color: '#E0A52C',
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: '95% lower',
+    });
+  }
+
+  const handleResize = () => {
+    if (containerRef.current) {
+      chart.applyOptions({ width: containerRef.current.clientWidth });
+    }
+  };
+
+  window.addEventListener('resize', handleResize);
+
+  return () => {
+    window.removeEventListener('resize', handleResize);
+    if (upperLine) series.removePriceLine(upperLine);
+    if (lowerLine) series.removePriceLine(lowerLine);
+    chart.remove();
+  };
+}, [candles, predictions, livePrediction]);
 
   return (
     <div>
