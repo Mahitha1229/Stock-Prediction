@@ -310,3 +310,67 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
 .chat-bubble strong {
   color: inherit;
 }
+
+/* ---------- Prediction card signature ---------- */
+.card--prediction {
+  border-left: 2px solid var(--accent);
+}
+
+/* ---------- Prediction accuracy table ---------- */
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 10px;
+}
+.history-table th {
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.history-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+.history-table tr:last-child td { border-bottom: none; }
+.history-table tr:hover td { background: rgba(255,255,255,0.02); }
+.status-resolved { color: var(--text-secondary); }
+.status-pending { color: var(--text-dim); }
+
+/* ---------- Watchlist quick-add chips ---------- */
+.chip {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-data);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.chip:hover {
+  border-color: var(--accent-dim);
+  color: var(--text-primary);
+}
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.chip-region-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 10px 0 4px;
+}
