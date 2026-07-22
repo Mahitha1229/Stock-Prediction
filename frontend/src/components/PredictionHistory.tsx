@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchPredictionHistory, PredictionHistoryEntry } from '../api'
 
-export default function PredictionHistory({ ticker }: { ticker: string }) {
+export default function PredictionHistory({ ticker, refreshKey }: { ticker: string; refreshKey?: unknown }) {
   const [rows, setRows] = useState<PredictionHistoryEntry[]>([])
   const [loading, setLoading] = useState(false)
 
