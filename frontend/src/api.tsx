@@ -127,10 +127,93 @@ export async function sendChatMessage(message: string, history: ChatMessage[]) {
   return data.reply as string
 }
 
-export function openPriceSocket(ticker: string, onMessage: (q: Quote) => void) {
-  const ws = new WebSocket(`${WS_BASE}/ws/prices/${ticker}`)
-  ws.onmessage = (event) => onMessage(JSON.parse(event.data))
-  return ws
+export type SocketStatus = 'connecting' | 'live' | 'stale' | 'reconnecting' | 'closed'
+
+interface PriceSocketHandle {
+  close: () => void
+}
+
+const STALE_TIMEOUT_MS = 15000   // no message in 15s => mark stale
+const MAX_BACKOFF_MS = 30000     // cap reconnect delay at 30s
+const BASE_BACKOFF_MS = 1000     // start at 1s
+
+export function openPriceSocket(
+  ticker: string,
+  onMessage: (q: Quote) => void,
+  onStatusChange: (status: SocketStatus) => void,
+): PriceSocketHandle {
+  let ws: WebSocket | null = null
+  let closedByCaller = false
+  let attempt = 0
+  let staleTimer: ReturnType<typeof setTimeout> | null = null
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearStaleTimer() {
+    if (staleTimer) clearTimeout(staleTimer)
+    staleTimer = null
+  }
+
+  function armStaleTimer() {
+    clearStaleTimer()
+    staleTimer = setTimeout(() => {
+      onStatusChange('stale')
+      ws?.close()
+    }, STALE_TIMEOUT_MS)
+  }
+
+  function connect() {
+    if (closedByCaller) return
+    onStatusChange(attempt === 0 ? 'connecting' : 'reconnecting')
+
+    ws = new WebSocket(`${WS_BASE}/ws/prices/${ticker}`)
+
+    ws.onopen = () => {
+      attempt = 0
+      onStatusChange('live')
+      armStaleTimer()
+    }
+
+    ws.onmessage = (event) => {
+      armStaleTimer()
+      onStatusChange('live')
+      try {
+        onMessage(JSON.parse(event.data))
+      } catch {
+        // ignore malformed frame
+      }
+    }
+
+    ws.onclose = () => {
+      clearStaleTimer()
+      if (closedByCaller) {
+        onStatusChange('closed')
+        return
+      }
+      scheduleReconnect()
+    }
+
+    ws.onerror = () => {
+      ws?.close()
+    }
+  }
+
+  function scheduleReconnect() {
+    onStatusChange('reconnecting')
+    const delay = Math.min(BASE_BACKOFF_MS * 2 ** attempt, MAX_BACKOFF_MS)
+    attempt++
+    reconnectTimer = setTimeout(connect, delay)
+  }
+
+  connect()
+
+  return {
+    close: () => {
+      closedByCaller = true
+      clearStaleTimer()
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      ws?.close()
+    },
+  }
 }
 
 export interface PredictionHistoryEntry {
