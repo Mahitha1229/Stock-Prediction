@@ -222,8 +222,6 @@ def get_cached_stock_history(ticker: str, period: str = "60d", interval: str = "
 
 
 def get_latest_quote(ticker: str) -> dict:
-    """Lightweight latest-price fetch, used by the websocket price feed.
-    Cached briefly so multiple users watching the same ticker share one Yahoo request."""
     now = time.time()
     if ticker in _quote_cache:
         cached_at, data = _quote_cache[ticker]
@@ -233,23 +231,40 @@ def get_latest_quote(ticker: str) -> dict:
     hist = yf.Ticker(ticker).history(period="2d", interval="1m")
     if hist.empty:
         hist = yf.Ticker(ticker).history(period="5d", interval="1d")
-    if hist.empty:
-        return {}
-    last = hist.iloc[-1]
-    prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last["Close"]
-    change = float(last["Close"] - prev_close)
-    change_pct = (change / prev_close) * 100 if prev_close else 0.0
-    result = {
-        "ticker": ticker,
-        "price": round(float(last["Close"]), 2),
-        "change": round(change, 2),
-        "change_pct": round(change_pct, 2),
-        "volume": int(last["Volume"]) if not np.isnan(last["Volume"]) else 0,
-        "timestamp": datetime.now().isoformat(),
-    }
-    _quote_cache[ticker] = (now, result)
-    return result
 
+    if not hist.empty:
+        last = hist.iloc[-1]
+        prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last["Close"]
+        change = float(last["Close"] - prev_close)
+        change_pct = (change / prev_close) * 100 if prev_close else 0.0
+        result = {
+            "ticker": ticker,
+            "price": round(float(last["Close"]), 2),
+            "change": round(change, 2),
+            "change_pct": round(change_pct, 2),
+            "volume": int(last["Volume"]) if not np.isnan(last["Volume"]) else 0,
+            "timestamp": datetime.now().isoformat(),
+            "source": "yfinance",
+        }
+        _quote_cache[ticker] = (now, result)
+        return result
+
+    # yfinance had nothing — try Finnhub as a secondary source
+    fh = _fetch_quote_finnhub(ticker)
+    if fh:
+        result = {
+            "ticker": ticker,
+            "price": round(float(fh["price"]), 2),
+            "change": round(float(fh["change"] or 0), 2),
+            "change_pct": round(float(fh["change_pct"] or 0), 2),
+            "volume": 0,
+            "timestamp": datetime.now().isoformat(),
+            "source": "finnhub",
+        }
+        _quote_cache[ticker] = (now, result)
+        return result
+
+    return {}
 
 def get_technical_indicators(stock_data):
     df = stock_data.copy()
