@@ -21,7 +21,7 @@ require_login()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = "openai/gpt-oss-120b"
 
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 _pretrained_models = load_models()
