@@ -12,7 +12,7 @@ export default function TickerTape({
 
   useEffect(() => {
     const sockets = tickers.map((t) =>
-      openPriceSocket(t, (q) => setQuotes((prev) => ({ ...prev, [t]: q })))
+      openPriceSocket(t, (q) => setQuotes((prev) => ({ ...prev, [t]: q })), () => {})
     )
     return () => sockets.forEach((s) => s.close())
   }, [tickers.join(',')])
