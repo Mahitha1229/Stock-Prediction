@@ -41,38 +41,43 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    let ws: WebSocket | null = null
-    let cancelled = false
+  let socket: { close: () => void } | null = null
+  let cancelled = false
 
-    async function load() {
-      setLoading(true)
-      setError(null)
-      setPrediction(null)
-      try {
-        const hist = await fetchHistory(ticker)
-        if (cancelled) return
-        setCandles(hist.candles)
+  async function load() {
+    setLoading(true)
+    setError(null)
+    setPrediction(null)
+    setConnStatus('connecting')
+    try {
+      const hist = await fetchHistory(ticker)
+      if (cancelled) return
+      setCandles(hist.candles)
 
-        ws = openPriceSocket(ticker, (q) => { if (!cancelled) setLiveQuote(q) })
+      socket = openPriceSocket(
+        ticker,
+        (q) => { if (!cancelled) setLiveQuote(q) },
+        (status) => { if (!cancelled) setConnStatus(status) },
+      )
 
-        await fetchPredictionWithPolling(
-          ticker,
-          (pred) => { if (!cancelled) setPrediction(pred) },
-          () => cancelled,
-        )
-      } catch (err: any) {
-        if (!cancelled) setError(err?.response?.data?.detail || 'Could not load this ticker')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      await fetchPredictionWithPolling(
+        ticker,
+        (pred) => { if (!cancelled) setPrediction(pred) },
+        () => cancelled,
+      )
+    } catch (err: any) {
+      if (!cancelled) setError(err?.response?.data?.detail || 'Could not load this ticker')
+    } finally {
+      if (!cancelled) setLoading(false)
     }
-    load()
+  }
+  load()
 
-    return () => {
-      cancelled = true
-      ws?.close()
-    }
-  }, [ticker])
+  return () => {
+    cancelled = true
+    socket?.close()
+  }
+}, [ticker])
 
   function selectTicker(symbol: string) {
     setTicker(symbol)
