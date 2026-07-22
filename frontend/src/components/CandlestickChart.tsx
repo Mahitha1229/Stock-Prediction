@@ -133,7 +133,8 @@ if (
 }
 
     chart.timeScale().fitContent();
-
+    let upperLine: ReturnType<typeof series.createPriceLine> | null = null;
+    let lowerLine: ReturnType<typeof series.createPriceLine> | null = null;
     const handleResize = () => {
       if (containerRef.current) {
         chart.applyOptions({ width: containerRef.current.clientWidth });
