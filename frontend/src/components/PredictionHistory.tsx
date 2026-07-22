@@ -13,7 +13,7 @@ export default function PredictionHistory({ ticker, refreshKey }: { ticker: stri
       .catch(() => { if (!cancelled) setRows([]) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [ticker])
+  }, [ticker, refreshKey])
 
   if (loading) return <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading prediction history…</div>
   if (rows.length === 0) return null
