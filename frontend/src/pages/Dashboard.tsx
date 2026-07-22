@@ -279,6 +279,7 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+          <PredictionHistory ticker={ticker} />
         </div>
 
         <div className="panel">
