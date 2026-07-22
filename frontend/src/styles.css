@@ -247,6 +247,8 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
   display: flex;
   flex-direction: column;
   height: 420px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .chat-messages {
