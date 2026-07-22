@@ -142,6 +142,61 @@ def validate_ticker(ticker: str) -> bool:
 
 # ---------- Stock data ----------
 
+def _fetch_history_twelvedata(ticker: str, period: str = "1y", interval: str = "1d") -> "pd.DataFrame":
+    """Secondary history source. Twelve Data's free tier is scoped mainly
+    to US markets/forex/crypto — most non-US equities may return nothing
+    here unless the account is on a paid plan."""
+    if not TWELVE_DATA_API_KEY:
+        return pd.DataFrame()
+    interval_map = {"1d": "1day", "1wk": "1week", "1mo": "1month"}
+    td_interval = interval_map.get(interval, "1day")
+    period_days_map = {"5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
+    outputsize = min(period_days_map.get(period, 365), 5000)
+    try:
+        resp = requests.get(
+            "https://api.twelvedata.com/time_series",
+            params={"symbol": ticker, "interval": td_interval, "outputsize": outputsize, "apikey": TWELVE_DATA_API_KEY},
+            timeout=8,
+        )
+        data = resp.json()
+        if data.get("status") == "error" or "values" not in data:
+            return pd.DataFrame()
+        df = pd.DataFrame(data["values"])
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.set_index("datetime").sort_index()
+        df = df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"})
+        for col in ["Open", "High", "Low", "Close", "Volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        return df.dropna(subset=["Close"])
+    except Exception:
+        return pd.DataFrame()
+
+
+def _fetch_quote_finnhub(ticker: str) -> dict:
+    """Secondary live-quote source. Finnhub's free tier gives real-time US
+    quotes; international symbols are end-of-day only even on paid plans
+    for many exchanges, and historical candles are blocked on the free key."""
+    if not FINNHUB_API_KEY:
+        return {}
+    try:
+        resp = requests.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": ticker, "token": FINNHUB_API_KEY},
+            timeout=6,
+        )
+        data = resp.json()
+        if not data or not data.get("c"):
+            return {}
+        return {
+            "price": data["c"],
+            "prev_close": data.get("pc"),
+            "change": data.get("d"),
+            "change_pct": data.get("dp"),
+        }
+    except Exception:
+        return {}
+
 def get_stock_history(ticker: str, period: str = "1y", interval: str = "1d"):
     hist = yf.Ticker(ticker).history(period=period, interval=interval)
     if not hist.empty:
