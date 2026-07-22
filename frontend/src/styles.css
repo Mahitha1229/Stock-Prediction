@@ -435,3 +435,7 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
   overflow: visible;   /* let content expand naturally instead of scrolling inside the bubble */
   max-height: none;    /* remove any fixed height that forces internal scrolling */
 }
+
+.live-dot--warn {
+  background: #e0a52c;
+}
