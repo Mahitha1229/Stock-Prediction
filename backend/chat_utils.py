@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import re
 
 import yfinance as yf
 import requests
@@ -26,7 +27,7 @@ FINANCE_JOKES = [
     "Why don't investors trust stairs? They're always up to something!",
 ]
 
-# ---------- Tool implementations (same logic as the Streamlit version) ----------
+# ---------- Tool implementations ----------
 
 def tool_get_stock_price(ticker: str) -> str:
     try:
@@ -355,6 +356,24 @@ def is_greeting(text: str) -> bool:
     return any(text.lower().strip().startswith(g) for g in greetings) and len(text.split()) <= 4
 
 
+def extract_failed_tool_call(error_str: str):
+    """
+    Groq sometimes fails to package a tool call properly but still shows us
+    what it intended in 'failed_generation', e.g.:
+    '<function=get_stock_price{"ticker": "RELIANCE.NS"}></function>'
+    Extract and run that call ourselves instead of giving up.
+    """
+    match = re.search(r'<function=(\w+)(\{.*?\})>', error_str)
+    if not match:
+        return None
+    fn_name, args_str = match.group(1), match.group(2)
+    try:
+        fn_args = json.loads(args_str)
+    except json.JSONDecodeError:
+        return None
+    return fn_name, fn_args
+
+
 def run_chat(user_input: str, history: list[dict]) -> str:
     """history: list of {"role": "user"|"assistant", "content": str}, most recent last."""
     if not client:
@@ -369,23 +388,50 @@ def run_chat(user_input: str, history: list[dict]) -> str:
     messages.append({"role": "user", "content": user_input})
 
     try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.1,
-            max_tokens=800,
-        )
-        response_message = response.choices[0].message
+        MAX_TOOL_ROUNDS = 5
+        for _ in range(MAX_TOOL_ROUNDS):
+            try:
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    temperature=0.1,
+                    max_tokens=800,
+                )
+                response_message = response.choices[0].message
+            except Exception as e:
+                # Groq failed to package the tool call, but often tells us
+                # what it tried to do — extract and run it ourselves.
+                recovered = extract_failed_tool_call(str(e))
+                if not recovered:
+                    raise
+                fn_name, fn_args = recovered
+                fn = AVAILABLE_FUNCTIONS.get(fn_name)
+                result = fn(**fn_args) if fn else json.dumps({"error": "Unknown tool"})
+                messages.append({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": "recovered_call_1",
+                        "type": "function",
+                        "function": {"name": fn_name, "arguments": json.dumps(fn_args)},
+                    }],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": "recovered_call_1",
+                    "name": fn_name,
+                    "content": result,
+                })
+                continue  # loop again, ask the model to now form a normal reply
 
-        if response_message.tool_calls:
-            # Groq's SDK returns a Pydantic object here, not a plain dict.
-            # It MUST be converted before being sent back in the next call,
-            # or the follow-up request can fail/silently drop tool context.
+            if not response_message.tool_calls:
+                return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
+
             messages.append({
                 "role": "assistant",
-                "content": response_message.content,
+                "content": response_message.content or "",
                 "tool_calls": [
                     {
                         "id": tc.id,
@@ -411,17 +457,7 @@ def run_chat(user_input: str, history: list[dict]) -> str:
                     "content": result,
                 })
 
-            second_response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                temperature=0.1,
-                max_tokens=800,
-            )
-            return second_response.choices[0].message.content or (
-                "I looked that up but couldn't form a reply — try rephrasing your question."
-            )
-
-        return response_message.content or "I'm not sure how to respond to that — could you rephrase?"
+        return "I had trouble getting a complete answer — please try rephrasing your question."
 
     except Exception as e:
         return f"Sorry, something went wrong: {str(e)}"
