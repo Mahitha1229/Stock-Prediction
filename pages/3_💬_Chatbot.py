@@ -383,6 +383,23 @@ def is_greeting(text):
     greetings = ["hi", "hello", "hey", "good morning", "good evening", "good afternoon"]
     return any(text.lower().strip().startswith(g) for g in greetings) and len(text.split()) <= 4
 
+def extract_failed_tool_call(error_str):
+    """
+    Groq sometimes fails to package a tool call properly but still shows us
+    what it intended in 'failed_generation', e.g.:
+    '<function=get_stock_price{"ticker": "RELIANCE.NS"}></function>'
+    Extract and run that call ourselves instead of giving up.
+    """
+    match = re.search(r'<function=(\w+)(\{.*?\})>', error_str)
+    if not match:
+        return None
+    fn_name, args_str = match.group(1), match.group(2)
+    try:
+        fn_args = json.loads(args_str)
+    except json.JSONDecodeError:
+        return None
+    return fn_name, fn_args
+
 def run_chat(user_input, history):
     if not client:
         return "The chatbot isn't configured yet — please add GROQ_API_KEY to your .env file."
