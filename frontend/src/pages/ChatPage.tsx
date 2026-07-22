@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useChat } from '../hooks/useChat'
+import { useChat } from '../context/ChatContext'
 
 export default function ChatPage() {
   const { messages, input, setInput, busy, scrollRef, handleSend } = useChat()
