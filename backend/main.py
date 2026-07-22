@@ -2,6 +2,7 @@ import asyncio
 from typing import Optional
 import chat_utils as chat
 import threading
+import prediction_tracker as pt
 from fastapi.responses import JSONResponse
 
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
