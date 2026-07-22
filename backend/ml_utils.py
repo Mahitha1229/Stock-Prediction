@@ -511,7 +511,7 @@ def get_or_train_model(ticker: str, pretrained_models: dict):
 def predict_next_day(ticker: str, model_dict: dict):
     hist = get_cached_stock_history(ticker, period="60d")
     if hist.empty:
-        return None, "No data available for this stock"
+        return None, "No data available for this stock", None
 
     data = get_technical_indicators(hist)
     features = ["Close", "RSI", "Stochastic", "ROC", "ADX"]
@@ -519,36 +519,74 @@ def predict_next_day(ticker: str, model_dict: dict):
     time_step = model_dict["time_step"]
 
     if len(data) < time_step:
-        return None, "Not enough recent data for this stock"
+        return None, "Not enough recent data for this stock", None
 
     data_scaled = scaler.transform(data[features].tail(time_step))
     X_flat = data_scaled.reshape(1, -1)
 
-    preds = []
+    def _inverse(scaled_val: float) -> float:
+        row = np.zeros((1, len(features)))
+        row[0, 0] = scaled_val
+        return float(scaler.inverse_transform(row)[0, 0])
+
+    scaled_preds = []
+    rf_tree_scaled_preds = None
+
     if "lstm" in model_dict:
         X_lstm = data_scaled.reshape(1, time_step, len(features))
-        preds.append(float(model_dict["lstm"].predict(X_lstm, verbose=0)[0][0]))
+        scaled_preds.append(float(model_dict["lstm"].predict(X_lstm, verbose=0)[0][0]))
     if "xgb" in model_dict:
-        preds.append(float(model_dict["xgb"].predict(X_flat)[0]))
+        scaled_preds.append(float(model_dict["xgb"].predict(X_flat)[0]))
     if "rf" in model_dict:
-        preds.append(float(model_dict["rf"].predict(X_flat)[0]))
+        rf_model = model_dict["rf"]
+        scaled_preds.append(float(rf_model.predict(X_flat)[0]))
+        # Every tree's individual vote — free uncertainty signal from an
+        # ensemble we already trained, no extra cost.
+        rf_tree_scaled_preds = np.array([
+            tree.predict(X_flat)[0] for tree in rf_model.estimators_
+        ])
 
-    if not preds:
-        return None, "No valid model components available"
+    if not scaled_preds:
+        return None, "No valid model components available", None
 
-    ensemble_pred = sum(preds) / len(preds)
-    pred_scaled = np.zeros((1, len(features)))
-    pred_scaled[0, 0] = ensemble_pred
-    predicted_price = scaler.inverse_transform(pred_scaled)[0, 0]
+    # Point estimate: average each model's prediction in price-space
+    # (converting first, then averaging, avoids compounding scaler error)
+    individual_price_preds = [_inverse(v) for v in scaled_preds]
+    predicted_price = float(np.mean(individual_price_preds))
+
+    # --- Confidence range ---
+    uncertainty_sources = []
+
+    if len(individual_price_preds) > 1:
+        uncertainty_sources.append(np.std(individual_price_preds))  # model disagreement
+
+    if rf_tree_scaled_preds is not None:
+        rf_tree_prices = [_inverse(v) for v in rf_tree_scaled_preds]
+        uncertainty_sources.append(np.std(rf_tree_prices))  # RF internal spread
+
+    recent_returns = data["Close"].pct_change().dropna().tail(30)
+    volatility_floor = (
+        float(recent_returns.std()) * predicted_price if len(recent_returns) > 5 else 0.0
+    )
+
+    model_uncertainty = max(uncertainty_sources) if uncertainty_sources else 0.0
+    combined_std = max(model_uncertainty, volatility_floor)
+
+    Z_95 = 1.96
+    confidence = {
+        "lower": round(predicted_price - Z_95 * combined_std, 2),
+        "upper": round(predicted_price + Z_95 * combined_std, 2),
+        "level": 0.95,
+    }
 
     def _next_trading_day(d: datetime) -> datetime:
         nxt = d + timedelta(days=1)
-        while nxt.weekday() >= 5:  # Sat=5, Sun=6
+        while nxt.weekday() >= 5:
             nxt += timedelta(days=1)
         return nxt
 
     target_date = _next_trading_day(datetime.now()).strftime("%Y-%m-%d")
-    return predicted_price, target_date
+    return predicted_price, target_date, confidence
 
 # === Add this to ml_utils.py ===
 
