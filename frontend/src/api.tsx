@@ -39,6 +39,8 @@ export interface Prediction {
   prediction_date?: string
   on_demand?: boolean
   currency_symbol?: string
+  confidence_low?: number | null
+  confidence_high?: number | null
 }
 
 export async function login(username: string, password: string) {
