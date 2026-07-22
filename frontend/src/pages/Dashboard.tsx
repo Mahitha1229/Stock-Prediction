@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
-  Candle, Quote, Prediction,
+  Candle, Quote, Prediction, SocketStatus,
   fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
 } from '../api'
 import CandlestickChart from '../components/CandlestickChart'
