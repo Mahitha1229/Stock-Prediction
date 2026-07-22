@@ -263,8 +263,12 @@ export default function Dashboard() {
                 )}
               </div>
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="live-dot" /> LIVE
-              </span>
+  <span className={connStatus === 'live' ? 'live-dot' : 'live-dot live-dot--warn'} />
+  {connStatus === 'live' ? 'LIVE'
+    : connStatus === 'connecting' ? 'CONNECTING'
+    : connStatus === 'closed' ? 'OFFLINE'
+    : 'RECONNECTING'}
+</span>
             </div>
 
             <div style={{ marginTop: 16 }}>
