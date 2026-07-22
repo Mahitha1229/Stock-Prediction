@@ -1,7 +1,6 @@
 import os
 import json
 import random
-import time
 import re
 import streamlit as st
 import yfinance as yf
@@ -23,28 +22,6 @@ require_login()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 NEWSAPI_API_KEY = os.getenv("NEWSAPI_API_KEY")
 MODEL_NAME = "llama-3.3-70b-versatile"
-
-def call_groq_with_retry(messages, tools=None, max_retries=2, **kwargs):
-    last_error = None
-    for attempt in range(max_retries + 1):
-        try:
-            kwargs_full = dict(kwargs)
-            if tools is not None:
-                kwargs_full["tools"] = tools
-                kwargs_full["tool_choice"] = "auto"
-            return client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                **kwargs_full,
-            )
-        except Exception as e:
-            last_error = e
-            err_str = str(e)
-            if "Failed to call a function" in err_str or "tool_use_failed" in err_str:
-                time.sleep(0.5 * (attempt + 1))
-                continue
-            raise
-    raise last_error
 
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 _pretrained_models = load_models()
