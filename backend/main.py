@@ -37,8 +37,6 @@ _prediction_jobs: dict[str, dict] = {}
 _prediction_jobs_lock = threading.Lock()
 
 def _train_and_store_prediction(ticker: str):
-    """Runs in a background thread. Trains (if needed) and predicts,
-    then stashes the result so the polling endpoint can pick it up."""
     try:
         model_dict = ml.get_or_train_model(ticker, all_models)
         if not model_dict:
@@ -48,19 +46,21 @@ def _train_and_store_prediction(ticker: str):
                     "detail": "Not enough historical data to train a model for this stock",
                 }
             return
- 
-        predicted_price, prediction_date = ml.predict_next_day(ticker, model_dict)
+
+        predicted_price, prediction_date, confidence = ml.predict_next_day(ticker, model_dict)
         if predicted_price is None:
             with _prediction_jobs_lock:
                 _prediction_jobs[ticker] = {"status": "error", "detail": prediction_date}
             return
- 
+
         result = {
             "ticker": ticker,
             "predicted_price": round(float(predicted_price), 2),
             "prediction_date": prediction_date,
             "on_demand": bool(model_dict.get("on_demand")),
             "currency_symbol": ml.get_currency_symbol(ticker),
+            "confidence_low": confidence["lower"] if confidence else None,
+            "confidence_high": confidence["upper"] if confidence else None,
         }
         pt.save_prediction(
             ticker, prediction_date, result["predicted_price"],
