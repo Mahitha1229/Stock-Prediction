@@ -421,3 +421,17 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
 .chat-messages::-webkit-scrollbar {
   display: none;               /* Chrome, Safari, Edge (Chromium) */
 }
+
+.chat-messages {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chat-messages::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-bubble {
+  overflow: visible;   /* let content expand naturally instead of scrolling inside the bubble */
+  max-height: none;    /* remove any fixed height that forces internal scrolling */
+}
