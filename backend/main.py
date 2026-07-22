@@ -269,3 +269,32 @@ def trending_tickers():
     """Global default suggestions grouped by region, for dashboard/search defaults.
     Distinct from /curated-tickers, which lists only the pretrained high-accuracy models."""
     return {"trending": ml.get_trending_tickers()}
+
+@app.get("/stock/{ticker}/prediction-history")
+def prediction_history(ticker: str):
+    ticker = ticker.upper()
+    records = pt.get_predictions_for_ticker(ticker)
+    hist = ml.get_stock_history(ticker, period="6mo")
+
+    results = []
+    for r in records:
+        pred_date = r["prediction_date"]
+        actual_price = None
+        if not hist.empty:
+            match = hist[hist.index.strftime("%Y-%m-%d") == pred_date]
+            if not match.empty:
+                actual_price = round(float(match["Close"].iloc[0]), 2)
+
+        error_pct = None
+        direction_correct = None
+        if actual_price is not None:
+            error_pct = round(((r["predicted_price"] - actual_price) / actual_price) * 100, 2)
+
+        results.append({
+            **r,
+            "actual_price": actual_price,
+            "error_pct": error_pct,
+            "status": "resolved" if actual_price is not None else "pending",
+        })
+
+    return {"ticker": ticker, "history": results}
