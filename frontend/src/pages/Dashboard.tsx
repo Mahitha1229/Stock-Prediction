@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import {
-  Candle, Quote, Prediction, SocketStatus,
-  fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
-} from '../api'
 import CandlestickChart from '../components/CandlestickChart'
 import TickerTape from '../components/TickerTape'
 import Watchlist from '../components/Watchlist'
 import Chat from '../components/Chat'
 import PredictionHistory from '../components/PredictionHistory'
-
 import {
   Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
   fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
@@ -49,43 +44,43 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-  let socket: { close: () => void } | null = null
-  let cancelled = false
+    let socket: { close: () => void } | null = null
+    let cancelled = false
 
-  async function load() {
-    setLoading(true)
-    setError(null)
-    setPrediction(null)
-    setConnStatus('connecting')
-    try {
-      const hist = await fetchHistory(ticker)
-      if (cancelled) return
-      setCandles(hist.candles)
+    async function load() {
+      setLoading(true)
+      setError(null)
+      setPrediction(null)
+      setConnStatus('connecting')
+      try {
+        const hist = await fetchHistory(ticker)
+        if (cancelled) return
+        setCandles(hist.candles)
 
-      socket = openPriceSocket(
-        ticker,
-        (q) => { if (!cancelled) setLiveQuote(q) },
-        (status) => { if (!cancelled) setConnStatus(status) },
-      )
+        socket = openPriceSocket(
+          ticker,
+          (q) => { if (!cancelled) setLiveQuote(q) },
+          (status) => { if (!cancelled) setConnStatus(status) },
+        )
 
-      await fetchPredictionWithPolling(
-        ticker,
-        (pred) => { if (!cancelled) setPrediction(pred) },
-        () => cancelled,
-      )
-    } catch (err: any) {
-      if (!cancelled) setError(err?.response?.data?.detail || 'Could not load this ticker')
-    } finally {
-      if (!cancelled) setLoading(false)
+        await fetchPredictionWithPolling(
+          ticker,
+          (pred) => { if (!cancelled) setPrediction(pred) },
+          () => cancelled,
+        )
+      } catch (err: any) {
+        if (!cancelled) setError(err?.response?.data?.detail || 'Could not load this ticker')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  }
-  load()
+    load()
 
-  return () => {
-    cancelled = true
-    socket?.close()
-  }
-}, [ticker])
+    return () => {
+      cancelled = true
+      socket?.close()
+    }
+  }, [ticker])
 
   function selectTicker(symbol: string) {
     setTicker(symbol)
@@ -95,14 +90,14 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-  let cancelled = false
-  setHistoryLoading(true)
-  fetchPredictionHistory(ticker)
-    .then((data) => { if (!cancelled) setPredictionHistory(data) })
-    .catch(() => { if (!cancelled) setPredictionHistory([]) })
-    .finally(() => { if (!cancelled) setHistoryLoading(false) })
-  return () => { cancelled = true }
-}, [ticker, prediction])
+    let cancelled = false
+    setHistoryLoading(true)
+    fetchPredictionHistory(ticker)
+      .then((data) => { if (!cancelled) setPredictionHistory(data) })
+      .catch(() => { if (!cancelled) setPredictionHistory([]) })
+      .finally(() => { if (!cancelled) setHistoryLoading(false) })
+    return () => { cancelled = true }
+  }, [ticker, prediction])
 
   // Live search-as-you-type, debounced so we don't hit /search on every keystroke.
   useEffect(() => {
@@ -281,20 +276,20 @@ export default function Dashboard() {
                 )}
               </div>
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-  <span className={connStatus === 'live' ? 'live-dot' : 'live-dot live-dot--warn'} />
-  {connStatus === 'live' ? 'LIVE'
-    : connStatus === 'connecting' ? 'CONNECTING'
-    : connStatus === 'closed' ? 'OFFLINE'
-    : 'RECONNECTING'}
-</span>
+                <span className={connStatus === 'live' ? 'live-dot' : 'live-dot live-dot--warn'} />
+                {connStatus === 'live' ? 'LIVE'
+                  : connStatus === 'connecting' ? 'CONNECTING'
+                  : connStatus === 'closed' ? 'OFFLINE'
+                  : 'RECONNECTING'}
+              </span>
             </div>
 
             <div style={{ marginTop: 16 }}>
               {loading && <div style={{ color: 'var(--text-dim)' }}>Loading chart…</div>}
               {error && <div className="error-text">{error}</div>}
               {!loading && !error && candles.length > 0 && (
-  <CandlestickChart candles={candles} predictions={predictionHistory} livePrediction={prediction} />
-)}
+                <CandlestickChart candles={candles} predictions={predictionHistory} livePrediction={prediction} />
+              )}
             </div>
           </div>
 
