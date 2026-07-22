@@ -21,6 +21,9 @@ CACHE_MAX_AGE_HOURS = 24
 _history_cache: dict[str, tuple[float, "pd.DataFrame"]] = {}
 HISTORY_CACHE_TTL_SECONDS = 60  # short TTL since prices should feel live
 
+TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+
 _quote_cache: dict[str, tuple[float, dict]] = {}
 QUOTE_CACHE_TTL_SECONDS = 5  # matches websocket poll interval
 
