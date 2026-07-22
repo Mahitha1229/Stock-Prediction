@@ -202,30 +202,29 @@ export default function Watchlist({ onSelect }: { onSelect: (ticker: string) => 
       ))}
 
       {Object.keys(trending).length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div className="label" style={{ marginBottom: 8, fontSize: 12 }}>Suggested — quick add</div>
-          {Object.entries(trending).map(([region, tickers]) => (
-            <div key={region} style={{ marginBottom: 10 }}>
-              <div style={{ color: 'var(--text-dim)', fontSize: 11, marginBottom: 4 }}>{region}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {tickers
-                  .filter((t) => !items.includes(t))
-                  .map((t) => (
-                    <button
-                      key={t}
-                      className="ghost mono"
-                      style={{ fontSize: 12, padding: '2px 8px' }}
-                      onClick={() => handleQuickAdd(t)}
-                      title={`Add ${t} to watchlist`}
-                    >
-                      + {t}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          ))}
+  <div style={{ marginTop: 16 }}>
+    <div className="label" style={{ marginBottom: 8, fontSize: 12 }}>Suggested — quick add</div>
+    {Object.entries(trending).map(([region, tickers]) => (
+      <div key={region}>
+        <div className="chip-region-label">{region}</div>
+        <div className="chip-group">
+          {tickers
+            .filter((t) => !items.includes(t))
+            .map((t) => (
+              <button
+                key={t}
+                className="chip mono"
+                onClick={() => handleQuickAdd(t)}
+                title={`Add ${t} to watchlist`}
+              >
+                + {t}
+              </button>
+            ))}
         </div>
-      )}
+      </div>
+    ))}
+  </div>
+)}
     </div>
   )
 }
