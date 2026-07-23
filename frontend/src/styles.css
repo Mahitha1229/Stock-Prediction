@@ -596,9 +596,3 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
     right: 16px;
   }
 }
-
-  .floating-chat-bubble {
-    bottom: 16px;
-    right: 16px;
-  }
-}
