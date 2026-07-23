@@ -245,6 +245,17 @@ export async function fetchPredictionHistory(ticker: string): Promise<Prediction
   return res.data.history
 }
 
+export interface NewsArticle {
+  title: string
+  publisher: string | null
+  url: string | null
+}
+
+export async function fetchStockNews(ticker: string, limit = 6) {
+  const { data } = await api.get(`/stock/${ticker}/news`, { params: { limit } })
+  return data.articles as NewsArticle[]
+}
+
 export async function fetchTrendingTickers() {
   const { data } = await api.get('/trending-tickers')
   return data.trending as Record<string, string[]>
