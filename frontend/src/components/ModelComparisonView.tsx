@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import { fetchModelComparison, ModelComparison } from '../api'
 
-const MODEL_COLORS: Record<string, string> = {
-  LSTM: '#7C9CF0',
-  XGBoost: '#F0A93B',
-  'Random Forest': '#3DD68C',
+// Keyed by the actual backend keys (xgb, rf, lstm) — not display names.
+const MODEL_STYLE: Record<string, { label: string; color: string; glow: string }> = {
+  lstm: { label: 'LSTM', color: '#7C9CF0', glow: 'rgba(124,156,240,0.35)' },
+  xgb: { label: 'XGBoost', color: '#F0A93B', glow: 'rgba(240,169,59,0.35)' },
+  rf: { label: 'Random Forest', color: '#3DD68C', glow: 'rgba(61,214,140,0.35)' },
+}
+
+function styleFor(key: string) {
+  return MODEL_STYLE[key.toLowerCase()] ?? { label: key, color: '#9C8CF0', glow: 'rgba(156,140,240,0.35)' }
 }
 
 export default function ModelComparisonView({ ticker }: { ticker: string }) {
@@ -48,60 +53,78 @@ export default function ModelComparisonView({ ticker }: { ticker: string }) {
   const range = max - min || 1
 
   function barWidth(value: number): string {
-    // Scale bars relative to the spread of values, with a floor so small
-    // differences are still visible rather than all bars looking identical.
     const pct = 40 + ((value - min) / range) * 55
     return `${pct}%`
   }
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>
         Individual model predictions for {data.target_date}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {Object.entries(data.models).map(([name, value]) => (
-          <div key={name}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-              <span style={{ color: 'var(--text-secondary)' }}>{name}</span>
-              <span className="mono">{data.currency_symbol}{value.toFixed(2)}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {Object.entries(data.models).map(([name, value], i) => {
+          const s = styleFor(name)
+          return (
+            <div key={name}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, marginBottom: 6 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, boxShadow: `0 0 8px ${s.glow}` }} />
+                  {s.label}
+                </span>
+                <span className="mono" style={{ fontWeight: 600 }}>{data.currency_symbol}{value.toFixed(2)}</span>
+              </div>
+              <div style={{ background: 'var(--surface-elevated)', borderRadius: 999, height: 10, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: barWidth(value),
+                    height: '100%',
+                    borderRadius: 999,
+                    background: `linear-gradient(90deg, ${s.color}99, ${s.color})`,
+                    boxShadow: `0 0 10px ${s.glow}`,
+                    transition: 'width 0.5s ease',
+                    transitionDelay: `${i * 80}ms`,
+                  }}
+                />
+              </div>
             </div>
-            <div style={{ background: 'var(--surface-elevated)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-              <div
-                style={{
-                  width: barWidth(value),
-                  height: '100%',
-                  background: MODEL_COLORS[name] ?? 'var(--accent)',
-                  borderRadius: 4,
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
-          </div>
-        ))}
+          )
+        })}
 
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-            <span>Ensemble (avg)</span>
-            <span className="mono price-lg" style={{ fontSize: 18 }}>
+        <div
+          style={{
+            borderTop: '1px solid var(--border)',
+            paddingTop: 16,
+            marginTop: 4,
+            background: 'linear-gradient(180deg, transparent, rgba(240,169,59,0.04))',
+            borderRadius: 8,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              ✨ Ensemble (avg)
+            </span>
+            <span className="mono price-lg" style={{ fontSize: 20, background: 'linear-gradient(90deg, #F0A93B, #3DD68C)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {data.currency_symbol}{data.ensemble_price.toFixed(2)}
             </span>
           </div>
-          <div style={{ background: 'var(--surface-elevated)', borderRadius: 4, height: 10, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--surface-elevated)', borderRadius: 999, height: 12, overflow: 'hidden' }}>
             <div
               style={{
                 width: barWidth(data.ensemble_price),
                 height: '100%',
-                background: 'var(--accent)',
-                borderRadius: 4,
+                borderRadius: 999,
+                background: 'linear-gradient(90deg, #F0A93B, #3DD68C)',
+                boxShadow: '0 0 14px rgba(240,169,59,0.3)',
+                transition: 'width 0.5s ease',
               }}
             />
           </div>
         </div>
       </div>
 
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 14 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 16, lineHeight: 1.5 }}>
         {data.on_demand
           ? 'On-demand model: XGBoost + Random Forest ensemble.'
           : 'Curated model: LSTM + XGBoost + Random Forest ensemble.'}{' '}
