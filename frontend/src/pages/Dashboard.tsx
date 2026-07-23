@@ -7,6 +7,7 @@ import PredictionHistory from '../components/PredictionHistory'
 import FloatingChat from '../components/FloatingChat'
 import ChartSkeleton from '../components/ChartSkeleton'
 import NewsPanel from '../components/NewsPanel'
+import TickerTabs from '../components/TickerTabs'
 
 import {
   Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
