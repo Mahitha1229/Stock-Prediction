@@ -36,7 +36,7 @@ export default function NewsPanel({ ticker }: { ticker: string }) {
       {!loading && articles.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {articles.map((a, i) => (
-            
+            <a
               key={i}
               href={a.url ?? '#'}
               target="_blank"
