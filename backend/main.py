@@ -376,9 +376,14 @@ def model_comparison(ticker: str):
     if not result:
         raise HTTPException(status_code=422, detail="Could not compute model breakdown for this ticker")
 
-    result["currency_symbol"] = ml.get_currency_symbol(ticker)
-    result["on_demand"] = bool(model_dict.get("on_demand"))
-    return result
+    return {
+        "ticker": result["ticker"],
+        "target_date": result["target_date"],
+        "models": result["model_predictions"],
+        "ensemble_price": result["ensemble_prediction"],
+        "currency_symbol": ml.get_currency_symbol(ticker),
+        "on_demand": bool(model_dict.get("on_demand")),
+    }
 
 
 # ---------------------------------------------------------------------------
