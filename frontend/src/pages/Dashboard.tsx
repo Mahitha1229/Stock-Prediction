@@ -287,7 +287,7 @@ export default function Dashboard() {
             </div>
 
             <div style={{ marginTop: 16 }}>
-              {loading && <div style={{ color: 'var(--text-dim)' }}>Loading chart…</div>}
+              {loading && <ChartSkeleton />}
               {error && <div className="error-text">{error}</div>}
               {!loading && !error && candles.length > 0 && (
                 <CandlestickChart candles={candles} predictions={predictionHistory} livePrediction={prediction} />
