@@ -5,6 +5,8 @@ import TickerTape from '../components/TickerTape'
 import Watchlist from '../components/Watchlist'
 import Chat from '../components/Chat'
 import PredictionHistory from '../components/PredictionHistory'
+import FloatingChat from '../components/FloatingChat'
+
 import {
   Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
   fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
