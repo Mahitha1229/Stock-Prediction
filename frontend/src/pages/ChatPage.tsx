@@ -9,7 +9,7 @@ export default function ChatPage() {
   return (
     <div className="app-shell">
       <div className="topbar">
-        <div className="brand"><span className="brand__mark" />Quantis</div>
+        <div className="brand"><span className="brand__mark" />StockSense</div>
         <Link to="/" className="ghost" style={{ textDecoration: 'none' }}>← Back to Dashboard</Link>
       </div>
 
