@@ -186,7 +186,7 @@ export default function Dashboard() {
       <TickerTape tickers={tapeTickers} onSelect={(t) => selectTicker(t)} />
 
       <div className="topbar">
-        <div className="brand"><span className="brand__mark" />Quantis</div>
+        <div className="brand"><span className="brand__mark" />StockSense</div>
 
         <div className="topbar-search" style={{ position: 'relative', flex: 1, maxWidth: 360, margin: '0 24px' }}>
           <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>
