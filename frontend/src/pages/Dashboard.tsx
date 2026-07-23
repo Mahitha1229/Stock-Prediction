@@ -28,13 +28,14 @@ export default function Dashboard() {
   const [connStatus, setConnStatus] = useState<SocketStatus>('connecting')
   const [predictionSummary, setPredictionSummary] = useState<PredictionSummary | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
-
+  const [predictionHistory, setPredictionHistory] = useState<PredictionHistoryEntry[]>([])
   // Search dropdown state
   const [searchResults, setSearchResults] = useState<{ symbol: string; name: string; exchange?: string }[]>([])
   const [showResults, setShowResults] = useState(false)
   const [searching, setSearching] = useState(false)
 
-  const [predictionHistory, setPredictionHistory] = useState<PredictionHistoryEntry[]>([])
+  
+  
 
   // Pull a global mix (a couple per region) for the scrolling ticker tape,
   // instead of a hardcoded US-only list.
