@@ -312,35 +312,77 @@ def get_technical_indicators(stock_data):
 
 # ---------- Pretrained models (curated tickers) ----------
 
-_models_cache = None
+from collections import OrderedDict
+
+CURATED_TICKERS = [
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "HINDUNILVR.NS",
+    "ICICIBANK.NS", "BHARTIARTL.NS", "KOTAKBANK.NS", "ITC.NS", "SBIN.NS",
+    "LT.NS", "AXISBANK.NS", "BAJFINANCE.NS", "ASIANPAINT.NS", "MARUTI.NS",
+]
+
+MODEL_RELEASE_BASE_URL = "https://github.com/Mahitha1229/Stock-Prediction/releases/download/v2.0-models"
+MAX_LOADED_CURATED_MODELS = 4
+
+_curated_model_cache: "OrderedDict[str, dict]" = OrderedDict()
+
+
+def _safe_ticker_name(ticker: str) -> str:
+    return ticker.upper().replace("/", "_").replace("^", "IDX_").replace(".", "_")
+
+
+def _curated_cache_path(ticker: str) -> str:
+    safe = _safe_ticker_name(ticker)
+    return os.path.join(MODEL_CACHE_DIR, f"curated_{safe}.pkl")
+
+
+def _download_curated_model(ticker: str) -> bool:
+    path = _curated_cache_path(ticker)
+    if os.path.exists(path):
+        return True
+    safe = _safe_ticker_name(ticker)
+    url = f"{MODEL_RELEASE_BASE_URL}/{safe}.pkl"
+    try:
+        os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+        print(f"Downloading model for {ticker}...")
+        with requests.get(url, stream=True, timeout=120) as resp:
+            resp.raise_for_status()
+            with open(path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        print(f"Downloaded model for {ticker}.")
+        return True
+    except Exception as e:
+        print(f"Failed to download model for {ticker}: {e}")
+        return False
+
+
+def get_curated_model(ticker: str):
+    if ticker not in CURATED_TICKERS:
+        return None
+
+    if ticker in _curated_model_cache:
+        _curated_model_cache.move_to_end(ticker)
+        return _curated_model_cache[ticker]
+
+    if not _download_curated_model(ticker):
+        return None
+
+    try:
+        with open(_curated_cache_path(ticker), "rb") as f:
+            model_dict = pickle.load(f)
+    except Exception as e:
+        print(f"Failed to load model for {ticker}: {e}")
+        return None
+
+    _curated_model_cache[ticker] = model_dict
+    if len(_curated_model_cache) > MAX_LOADED_CURATED_MODELS:
+        _curated_model_cache.popitem(last=False)
+
+    return model_dict
 
 
 def load_models() -> dict:
-    global _models_cache
-    if _models_cache is not None:
-        return _models_cache
-
-    if not os.path.exists(MODEL_PATH):
-        model_url = os.getenv("MODEL_URL")
-        if model_url:
-            try:
-                print("Downloading stock_models.pkl from MODEL_URL...")
-                resp = requests.get(model_url, timeout=180)
-                resp.raise_for_status()
-                with open(MODEL_PATH, "wb") as f:
-                    f.write(resp.content)
-                print("Model file downloaded successfully.")
-            except Exception as e:
-                print(f"Failed to download model file: {e}")
-
-    try:
-        with open(MODEL_PATH, "rb") as f:
-            _models_cache = pickle.load(f)
-    except FileNotFoundError:
-        _models_cache = {}
-    except Exception:
-        _models_cache = {}
-    return _models_cache
+    return {ticker: None for ticker in CURATED_TICKERS}
 
 
 def resolve_ticker(query: str) -> list[dict]:
