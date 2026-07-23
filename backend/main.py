@@ -232,8 +232,10 @@ def fundamentals(ticker: str):
 def predict(ticker: str):
     ticker = ticker.upper()
 
-    if ticker in all_models:
-        model_dict = all_models[ticker]
+    if ticker in ml.CURATED_TICKERS:
+        model_dict = ml.get_curated_model(ticker)
+        if model_dict is None:
+            raise HTTPException(status_code=503, detail="Could not load model for this ticker right now, please try again")
         predicted_price, prediction_date, confidence = ml.predict_next_day(ticker, model_dict)
         if predicted_price is None:
             raise HTTPException(status_code=422, detail=prediction_date)
