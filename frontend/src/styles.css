@@ -544,10 +544,10 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
   position: fixed;
   bottom: 92px;
   right: 24px;
-  width: 380px;
+  width: 480px;
   max-width: calc(100vw - 32px);
-  height: 480px;
-  max-height: calc(100vh - 140px);
+  height: 620px;
+  max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
   z-index: 99;
