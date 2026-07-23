@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [tapeTickers, setTapeTickers] = useState<string[]>(['AAPL', 'MSFT', 'TSLA', 'NVDA', 'GOOGL'])
   const [connStatus, setConnStatus] = useState<SocketStatus>('connecting')
-  const [predictionHistory, setPredictionHistory] = useState<PredictionHistoryEntry[]>([])
+  const [predictionSummary, setPredictionSummary] = useState<PredictionSummary | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
 
   // Search dropdown state
