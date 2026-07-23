@@ -636,3 +636,56 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
   flex: 1;
   border-radius: 2px;
 }
+
+/* ================= TICKER TABS ================= */
+
+.ticker-tabs {
+  margin-top: 16px;
+}
+
+.ticker-tabs__nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.ticker-tabs__btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.ticker-tabs__btn:hover {
+  color: var(--text-primary);
+}
+
+.ticker-tabs__btn--active {
+  color: var(--accent);
+}
+
+.ticker-tabs__btn--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}
+
+.ticker-tabs__panel {
+  animation: tab-fade-in 0.15s ease;
+}
+
+@keyframes tab-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
