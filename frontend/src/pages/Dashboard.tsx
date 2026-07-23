@@ -316,9 +316,11 @@ export default function Dashboard() {
 
         <div className="panel">
           <Watchlist onSelect={(t) => selectTicker(t)} />
-          <div style={{ marginTop: 16 }}>
-            <Chat />
           </div>
+      <FloatingChat />
+    </div>
+  )
+}
         </div>
       </div>
     </div>
