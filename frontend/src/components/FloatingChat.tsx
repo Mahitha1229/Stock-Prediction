@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChat } from '../context/ChatContext'
@@ -13,9 +14,14 @@ export default function FloatingChat() {
         <div className="floating-chat-panel card">
           <div className="floating-chat-header">
             <span className="label">Finance Assistant</span>
-            <button className="ghost floating-chat-close" onClick={() => setOpen(false)} aria-label="Close chat">
-              ✕
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Link to="/chat" className="ghost" style={{ fontSize: 11, textDecoration: 'none', padding: '4px 8px' }}>
+                Expand ↗
+              </Link>
+              <button className="ghost floating-chat-close" onClick={() => setOpen(false)} aria-label="Close chat">
+                ✕
+              </button>
+            </div>
           </div>
 
           <div className="chat-messages" ref={scrollRef}>
