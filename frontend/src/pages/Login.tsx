@@ -34,7 +34,7 @@ export default function Login() {
       <form className="card auth-card" onSubmit={handleSubmit}>
         <div className="brand" style={{ marginBottom: 20 }}>
           <span className="brand__mark" />
-          Quantis
+          StockSense
         </div>
         <div className="field">
           <label>Username</label>
