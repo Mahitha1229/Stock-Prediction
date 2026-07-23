@@ -437,6 +437,24 @@ def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
     except Exception:
         return []
 
+def get_fundamentals(ticker: str) -> dict:
+    try:
+        info = yf.Ticker(ticker).info
+        return {
+            "ticker": ticker.upper(),
+            "name": info.get("shortName"),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "market_cap": info.get("marketCap"),
+            "pe_ratio": info.get("trailingPE"),
+            "eps": info.get("trailingEps"),
+            "dividend_yield_pct": round(info["dividendYield"], 2) if info.get("dividendYield") else None,
+            "week_52_high": info.get("fiftyTwoWeekHigh"),
+            "week_52_low": info.get("fiftyTwoWeekLow"),
+        }
+    except Exception:
+        return {}
+
 
 # ---------- On-demand models ----------
 
