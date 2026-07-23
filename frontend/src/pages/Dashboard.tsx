@@ -320,6 +320,12 @@ export default function Dashboard() {
           <Watchlist onSelect={(t) => selectTicker(t)} />
         </div>
       </div>
+        </div>
+
+        <div className="panel">
+          <Watchlist onSelect={(t) => selectTicker(t)} />
+        </div>
+      </div>
 
       <FloatingChat />
     </div>
