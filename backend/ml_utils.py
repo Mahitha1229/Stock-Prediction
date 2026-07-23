@@ -320,7 +320,7 @@ CURATED_TICKERS = [
     "LT.NS", "AXISBANK.NS", "BAJFINANCE.NS", "ASIANPAINT.NS", "MARUTI.NS",
 ]
 
-MODEL_RELEASE_BASE_URL = "https://github.com/Mahitha1229/Stock-Prediction/releases/download/v2.0-models"
+MODEL_RELEASE_BASE_URL = "https://github.com/Mahitha1229/Stock-Prediction/releases/download/v3.0-models-no-lstm"
 MAX_LOADED_CURATED_MODELS = 4
 
 _curated_model_cache: "OrderedDict[str, dict]" = OrderedDict()
