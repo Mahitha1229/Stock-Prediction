@@ -327,6 +327,11 @@ export default function Dashboard() {
                 label: 'News',
                 content: <NewsPanel ticker={ticker} />,
               },
+              {
+                id: 'fundamentals',
+                label: 'Fundamentals',
+                content: <FundamentalsCard ticker={ticker} />,
+              },
             ]}
           />
         </div>
