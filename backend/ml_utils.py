@@ -197,6 +197,7 @@ def _fetch_quote_finnhub(ticker: str) -> dict:
     except Exception:
         return {}
 
+
 def get_stock_history(ticker: str, period: str = "1y", interval: str = "1d"):
     hist = yf.Ticker(ticker).history(period=period, interval=interval)
     if not hist.empty:
@@ -265,6 +266,7 @@ def get_latest_quote(ticker: str) -> dict:
         return result
 
     return {}
+
 
 def get_technical_indicators(stock_data):
     df = stock_data.copy()
@@ -437,6 +439,7 @@ def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
     except Exception:
         return []
 
+
 def get_fundamentals(ticker: str) -> dict:
     try:
         info = yf.Ticker(ticker).info
@@ -462,6 +465,7 @@ def _cache_path(ticker: str) -> str:
     safe = ticker.upper().replace("/", "_").replace("^", "IDX_").replace(".", "_")
     return os.path.join(MODEL_CACHE_DIR, f"{safe}.pkl")
 
+
 def get_cached_on_demand_model(ticker: str):
     """Check disk cache only — never trains. Used by the async predict endpoint
     to decide whether a request can be answered instantly or needs a background job."""
@@ -475,6 +479,7 @@ def get_cached_on_demand_model(ticker: str):
             except Exception:
                 pass
     return None
+
 
 def train_on_demand_model(ticker: str):
     os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
@@ -518,11 +523,11 @@ def train_on_demand_model(ticker: str):
 def get_or_train_model(ticker: str, pretrained_models: dict):
     if ticker in pretrained_models:
         return pretrained_models[ticker]
- 
+
     cached = get_cached_on_demand_model(ticker)
     if cached:
         return cached
- 
+
     return train_on_demand_model(ticker)
 
 
@@ -605,9 +610,70 @@ def predict_next_day(ticker: str, model_dict: dict):
 
     target_date = _next_trading_day(datetime.now()).strftime("%Y-%m-%d")
     return predicted_price, target_date, confidence
-    
 
-# === Add this to ml_utils.py ===
+
+def predict_with_breakdown(ticker: str, model_dict: dict):
+    """Like predict_next_day, but returns each individual model's prediction
+    separately so the frontend's Model Comparison view can show
+    XGBoost vs Random Forest vs LSTM side by side, instead of just the
+    ensemble average. This is what /stock/{ticker}/model-comparison calls."""
+    hist = get_cached_stock_history(ticker, period="60d")
+    if hist.empty:
+        return None
+
+    data = get_technical_indicators(hist)
+    features = ["Close", "RSI", "Stochastic", "ROC", "ADX"]
+    scaler = model_dict["scaler"]
+    time_step = model_dict["time_step"]
+
+    if len(data) < time_step:
+        return None
+
+    data_scaled = scaler.transform(data[features].tail(time_step))
+    X_flat = data_scaled.reshape(1, -1)
+
+    def _inverse(scaled_val: float) -> float:
+        row = np.zeros((1, len(features)))
+        row[0, 0] = scaled_val
+        return float(scaler.inverse_transform(row)[0, 0])
+
+    breakdown = {}
+
+    if "lstm" in model_dict:
+        X_lstm = data_scaled.reshape(1, time_step, len(features))
+        scaled_pred = float(model_dict["lstm"].predict(X_lstm, verbose=0)[0][0])
+        breakdown["lstm"] = round(_inverse(scaled_pred), 2)
+
+    if "xgb" in model_dict:
+        scaled_pred = float(model_dict["xgb"].predict(X_flat)[0])
+        breakdown["xgb"] = round(_inverse(scaled_pred), 2)
+
+    if "rf" in model_dict:
+        scaled_pred = float(model_dict["rf"].predict(X_flat)[0])
+        breakdown["rf"] = round(_inverse(scaled_pred), 2)
+
+    if not breakdown:
+        return None
+
+    ensemble_avg = round(sum(breakdown.values()) / len(breakdown), 2)
+
+    def _next_trading_day(d: datetime) -> datetime:
+        nxt = d + timedelta(days=1)
+        while nxt.weekday() >= 5:
+            nxt += timedelta(days=1)
+        return nxt
+
+    target_date = _next_trading_day(datetime.now()).strftime("%Y-%m-%d")
+
+    return {
+        "ticker": ticker,
+        "target_date": target_date,
+        "model_predictions": breakdown,
+        "ensemble_prediction": ensemble_avg,
+    }
+
+
+# ---------- Trending tickers ----------
 
 TRENDING_TICKERS = {
     "US": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"],
