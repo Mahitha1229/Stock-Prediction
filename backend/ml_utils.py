@@ -332,7 +332,7 @@ def _safe_ticker_name(ticker: str) -> str:
 
 def _curated_cache_path(ticker: str) -> str:
     safe = _safe_ticker_name(ticker)
-    return os.path.join(MODEL_CACHE_DIR, f"curated_{safe}.pkl")
+    return os.path.join(MODEL_CACHE_DIR, f"curated_v3_{safe}.pkl")
 
 
 def _download_curated_model(ticker: str) -> bool:
