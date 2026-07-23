@@ -104,8 +104,18 @@ export default function Dashboard() {
     let cancelled = false
     setHistoryLoading(true)
     fetchPredictionHistory(ticker)
-      .then((data) => { if (!cancelled) setPredictionHistory(data) })
-      .catch(() => { if (!cancelled) setPredictionHistory([]) })
+      .then(({ history, summary }) => {
+        if (!cancelled) {
+          setPredictionHistory(history)
+          setPredictionSummary(summary)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPredictionHistory([])
+          setPredictionSummary(null)
+        }
+      })
       .finally(() => { if (!cancelled) setHistoryLoading(false) })
     return () => { cancelled = true }
   }, [ticker, prediction])
