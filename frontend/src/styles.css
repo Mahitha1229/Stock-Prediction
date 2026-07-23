@@ -24,6 +24,19 @@ html, body, #root {
   height: 100%;
   margin: 0;
 }
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+#root, .app-shell {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.main-grid, .panel {
+  min-width: 0; /* allows grid/flex children to shrink below content size instead of forcing overflow */
+}
 
 body {
   background: var(--bg);
