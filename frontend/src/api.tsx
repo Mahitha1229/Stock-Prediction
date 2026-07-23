@@ -265,3 +265,21 @@ export async function validateTicker(ticker: string) {
   const { data } = await api.get(`/stock/${ticker}/validate`)
   return data.valid as boolean
 }
+
+export interface Fundamentals {
+  ticker: string
+  name: string | null
+  sector: string | null
+  industry: string | null
+  market_cap: number | null
+  pe_ratio: number | null
+  eps: number | null
+  dividend_yield_pct: number | null
+  week_52_high: number | null
+  week_52_low: number | null
+}
+
+export async function fetchFundamentals(ticker: string) {
+  const { data } = await api.get(`/stock/${ticker}/fundamentals`)
+  return data as Fundamentals
+}
