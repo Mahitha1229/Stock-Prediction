@@ -1,7 +1,7 @@
 import axios from 'axios'
 
-export const API_BASE = 'http://localhost:8000'
-export const WS_BASE = 'ws://localhost:8000'
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+export const WS_BASE = API_BASE.replace(/^http/, 'ws')
 
 // timeout added so a hung backend/yfinance call fails after 20s instead of
 // leaving the UI spinner stuck forever
