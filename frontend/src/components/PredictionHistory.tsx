@@ -74,9 +74,6 @@ export default function PredictionHistory({
           value={String(totalResolved)}
           hint={`${rows.length - totalResolved} still pending`}
         />
-        {summary?.model_name && (
-          <StatBox label="Model" value={summary.model_name} hint="Ensemble in use" />
-        )}
       </div>
 
       <table className="history-table">
