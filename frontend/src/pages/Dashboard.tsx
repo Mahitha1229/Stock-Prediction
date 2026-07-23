@@ -15,13 +15,6 @@ import {
   fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
   fetchPredictionHistory,
 } from '../api'
-
-import {
-  Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
-  fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
-  fetchPredictionHistory,
-} from '../api'
-
 export default function Dashboard() {
   const { username, logout } = useAuth()
   const [ticker, setTicker] = useState('AAPL')
