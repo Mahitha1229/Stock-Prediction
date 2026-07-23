@@ -1,22 +1,16 @@
 import asyncio
-from typing import Optional
-import chat_utils as chat
 import threading
-import prediction_tracker as pt
-
-import asyncio
 from typing import Optional
-import chat_utils as chat
-import threading
-import prediction_tracker as pt
-import pandas as pd          # ← add this line
-from fastapi.responses import JSONResponse
 
+import pandas as pd
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
+import chat_utils as chat
+import prediction_tracker as pt
 import database as db
 import ml_utils as ml
 from auth import create_access_token, get_current_user
@@ -35,6 +29,7 @@ db.create_db()
 all_models = ml.load_models()
 _prediction_jobs: dict[str, dict] = {}
 _prediction_jobs_lock = threading.Lock()
+
 
 def _train_and_store_prediction(ticker: str):
     try:
@@ -73,6 +68,11 @@ def _train_and_store_prediction(ticker: str):
         with _prediction_jobs_lock:
             _prediction_jobs[ticker] = {"status": "error", "detail": str(e)}
 
+
+# ---------------------------------------------------------------------------
+# Request / response models
+# ---------------------------------------------------------------------------
+
 class RegisterRequest(BaseModel):
     username: str
     password: str
@@ -86,6 +86,7 @@ class TokenResponse(BaseModel):
 class WatchlistRequest(BaseModel):
     ticker: str
 
+
 class ChatMessage(BaseModel):
     role: str  # "user" or "assistant"
     content: str
@@ -95,6 +96,20 @@ class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
 
+
+class BacktestResult(BaseModel):
+    ticker: str
+    starting_capital: float
+    strategy_final_value: float
+    buy_hold_final_value: float
+    strategy_return_pct: float
+    buy_hold_return_pct: float
+    equity_curve: list[dict]
+
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
 
 @app.post("/auth/register")
 def register(req: RegisterRequest):
@@ -112,6 +127,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return TokenResponse(access_token=token)
 
 
+# ---------------------------------------------------------------------------
+# Watchlist
+# ---------------------------------------------------------------------------
+
 @app.get("/watchlist")
 def get_watchlist(user: str = Depends(get_current_user)):
     return {"watchlist": db.get_watchlist(user)}
@@ -119,8 +138,11 @@ def get_watchlist(user: str = Depends(get_current_user)):
 
 @app.post("/watchlist")
 def add_watchlist(req: WatchlistRequest, user: str = Depends(get_current_user)):
-    db.add_to_watchlist(user, req.ticker.upper())
-    return {"message": f"{req.ticker.upper()} added to watchlist"}
+    ticker = req.ticker.upper()
+    if not ml.validate_ticker(ticker):
+        raise HTTPException(status_code=404, detail=f'"{req.ticker}" is not a recognized ticker')
+    db.add_to_watchlist(user, ticker)
+    return {"message": f"{ticker} added to watchlist"}
 
 
 @app.delete("/watchlist/{ticker}")
@@ -128,6 +150,10 @@ def remove_watchlist(ticker: str, user: str = Depends(get_current_user)):
     db.remove_from_watchlist(user, ticker.upper())
     return {"message": f"{ticker.upper()} removed from watchlist"}
 
+
+# ---------------------------------------------------------------------------
+# Search / tickers
+# ---------------------------------------------------------------------------
 
 @app.get("/search")
 def search_ticker(q: str):
@@ -139,10 +165,21 @@ def curated_tickers():
     return {"tickers": list(all_models.keys())}
 
 
+@app.get("/trending-tickers")
+def trending_tickers():
+    """Global default suggestions grouped by region, for dashboard/search defaults.
+    Distinct from /curated-tickers, which lists only the pretrained high-accuracy models."""
+    return {"trending": ml.get_trending_tickers()}
+
+
 @app.get("/stock/{ticker}/validate")
 def validate(ticker: str):
     return {"valid": ml.validate_ticker(ticker.upper())}
 
+
+# ---------------------------------------------------------------------------
+# Stock data
+# ---------------------------------------------------------------------------
 
 @app.get("/stock/{ticker}/history")
 def history(ticker: str, period: str = "1y", interval: str = "1d"):
@@ -173,6 +210,23 @@ def quote(ticker: str):
     q["currency_symbol"] = ml.get_currency_symbol(ticker)
     return q
 
+
+@app.get("/stock/{ticker}/news")
+def news(ticker: str, limit: int = 6):
+    return {"articles": ml.get_stock_news(ticker.upper(), limit=limit)}
+
+
+@app.get("/stock/{ticker}/fundamentals")
+def fundamentals(ticker: str):
+    data = ml.get_fundamentals(ticker.upper())
+    if not data:
+        raise HTTPException(status_code=404, detail="No fundamentals data found for this ticker")
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Prediction
+# ---------------------------------------------------------------------------
 
 @app.get("/stock/{ticker}/predict")
 def predict(ticker: str):
@@ -214,24 +268,6 @@ def predict(ticker: str):
             "status": "done",
         }
 
-    # ... rest of the function (validate_ticker, background job kickoff) stays exactly the same
-
-    cached = ml.get_cached_on_demand_model(ticker)
-    if cached:
-        predicted_price, prediction_date = ml.predict_next_day(ticker, cached)
-        if predicted_price is None:
-            raise HTTPException(status_code=422, detail=prediction_date)
-        currency_symbol = ml.get_currency_symbol(ticker)
-        pt.save_prediction(ticker, prediction_date, round(float(predicted_price), 2), currency_symbol, "on-demand")
-        return {
-            "ticker": ticker,
-            "predicted_price": round(float(predicted_price), 2),
-            "prediction_date": prediction_date,
-            "on_demand": True,
-            "currency_symbol": currency_symbol,
-            "status": "done",
-        }
-    
     # New ticker with no cached/pretrained model — validate before training
     if not ml.validate_ticker(ticker):
         raise HTTPException(status_code=404, detail="Invalid ticker")
@@ -243,66 +279,17 @@ def predict(ticker: str):
             _prediction_jobs[ticker] = {"status": "training"}
             threading.Thread(target=_train_and_store_prediction, args=(ticker,), daemon=True).start()
             job = _prediction_jobs[ticker]
- 
+
     if job["status"] == "training":
         return JSONResponse(status_code=202, content={"ticker": ticker, "status": "training"})
- 
+
     if job["status"] == "error":
         raise HTTPException(status_code=422, detail=job["detail"])
- 
+
     result = dict(job["data"])
     result["status"] = "done"
     return result
 
-
-@app.get("/stock/{ticker}/news")
-def news(ticker: str, limit: int = 6):
-    return {"articles": ml.get_stock_news(ticker.upper(), limit=limit)}
-
-@app.get("/stock/{ticker}/fundamentals")
-def fundamentals(ticker: str):
-    data = ml.get_fundamentals(ticker.upper())
-    if not data:
-        raise HTTPException(status_code=404, detail="No fundamentals data found for this ticker")
-    return data
-
-@app.post("/chat")
-def chat_endpoint(req: ChatRequest, user: str = Depends(get_current_user)):
-    history = [{"role": m.role, "content": m.content} for m in req.history]
-    reply = chat.run_chat(req.message, history)
-    return {"reply": reply}
-
-
-@app.websocket("/ws/prices/{ticker}")
-async def ws_prices(websocket: WebSocket, ticker: str):
-    """
-    Streams a live-ish quote for `ticker` every 5 seconds.
-    yfinance isn't push-based, so this polls server-side and pushes
-    to the client — frontend just opens one connection.
-    """
-    await websocket.accept()
-    ticker = ticker.upper()
-    try:
-        while True:
-            quote_data = await asyncio.to_thread(ml.get_latest_quote, ticker)
-            if quote_data:
-                quote_data["currency_symbol"] = ml.get_currency_symbol(ticker)
-                await websocket.send_json(quote_data)
-            await asyncio.sleep(5)
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
-    finally:
-        try:
-            await websocket.close()
-        except Exception:
-            pass
-@app.get("/trending-tickers")
-def trending_tickers():
-    """Global default suggestions grouped by region, for dashboard/search defaults.
-    Distinct from /curated-tickers, which lists only the pretrained high-accuracy models."""
-    return {"trending": ml.get_trending_tickers()}
 
 @app.get("/stock/{ticker}/prediction-history")
 def prediction_history(ticker: str):
@@ -326,7 +313,6 @@ def prediction_history(ticker: str):
                 actual_price = round(float(match["Close"].iloc[0]), 2)
 
         error_pct = None
-        direction_correct = None
         if actual_price is not None:
             error_pct = round(((r["predicted_price"] - actual_price) / actual_price) * 100, 2)
 
@@ -353,7 +339,11 @@ def prediction_history(ticker: str):
         for r in resolved:
             try:
                 target_ts = pd.Timestamp(r["prediction_date"])
-                prior = sorted_hist[sorted_hist.index.tz_localize(None) < target_ts] if sorted_hist.index.tz is not None else sorted_hist[sorted_hist.index < target_ts]
+                prior = (
+                    sorted_hist[sorted_hist.index.tz_localize(None) < target_ts]
+                    if sorted_hist.index.tz is not None
+                    else sorted_hist[sorted_hist.index < target_ts]
+                )
                 if prior.empty:
                     continue
                 prior_close = float(prior["Close"].iloc[-1])
@@ -378,6 +368,7 @@ def prediction_history(ticker: str):
 
     return {"ticker": ticker, "history": results, "summary": summary}
 
+
 @app.get("/stock/{ticker}/model-comparison")
 def model_comparison(ticker: str):
     ticker = ticker.upper()
@@ -392,3 +383,117 @@ def model_comparison(ticker: str):
     result["currency_symbol"] = ml.get_currency_symbol(ticker)
     result["on_demand"] = bool(model_dict.get("on_demand"))
     return result
+
+
+# ---------------------------------------------------------------------------
+# Backtesting — compares a model-driven strategy against buy-and-hold
+# ---------------------------------------------------------------------------
+
+@app.get("/stock/{ticker}/backtest", response_model=BacktestResult)
+def backtest(ticker: str, starting_capital: float = 10000.0):
+    ticker = ticker.upper()
+    records = pt.get_predictions_for_ticker(ticker)
+    if not records:
+        raise HTTPException(
+            status_code=404,
+            detail="No prediction history yet for this ticker — predictions accumulate over time as you use the app",
+        )
+
+    hist = ml.get_stock_history(ticker, period="1y")
+    if hist.empty:
+        raise HTTPException(status_code=404, detail="No historical price data found for this ticker")
+
+    hist = hist.sort_index()
+    hist_naive_index = hist.index.tz_localize(None) if hist.index.tz is not None else hist.index
+
+    sorted_records = sorted(records, key=lambda r: r["prediction_date"])
+
+    strategy_value = starting_capital
+    buy_hold_units = None
+    equity_curve = []
+    resolved_any = False
+
+    for r in sorted_records:
+        target_ts = pd.Timestamp(r["prediction_date"])
+        prior = hist[hist_naive_index < target_ts]
+        after = hist[hist_naive_index >= target_ts]
+        if prior.empty or after.empty:
+            continue  # can't resolve this prediction yet — skip it in the simulation
+
+        prior_close = float(prior["Close"].iloc[-1])
+        actual_close = float(after["Close"].iloc[0])
+        predicted_up = r["predicted_price"] > prior_close
+
+        # Buy-and-hold: buy once, at the very first resolvable point
+        if buy_hold_units is None:
+            buy_hold_units = starting_capital / prior_close
+
+        # Strategy: only exposed to the day's move when the model predicted "up"
+        day_return = (actual_close - prior_close) / prior_close
+        if predicted_up:
+            strategy_value *= (1 + day_return)
+
+        resolved_any = True
+        equity_curve.append({
+            "date": r["prediction_date"],
+            "strategy_value": round(strategy_value, 2),
+            "buy_hold_value": round(buy_hold_units * actual_close, 2),
+            "predicted_up": predicted_up,
+        })
+
+    if not resolved_any:
+        raise HTTPException(status_code=422, detail="Predictions exist but none are resolved against historical prices yet")
+
+    buy_hold_final = equity_curve[-1]["buy_hold_value"]
+
+    return BacktestResult(
+        ticker=ticker,
+        starting_capital=starting_capital,
+        strategy_final_value=round(strategy_value, 2),
+        buy_hold_final_value=round(buy_hold_final, 2),
+        strategy_return_pct=round(((strategy_value - starting_capital) / starting_capital) * 100, 2),
+        buy_hold_return_pct=round(((buy_hold_final - starting_capital) / starting_capital) * 100, 2),
+        equity_curve=equity_curve,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Chat
+# ---------------------------------------------------------------------------
+
+@app.post("/chat")
+def chat_endpoint(req: ChatRequest, user: str = Depends(get_current_user)):
+    history = [{"role": m.role, "content": m.content} for m in req.history]
+    reply = chat.run_chat(req.message, history)
+    return {"reply": reply}
+
+
+# ---------------------------------------------------------------------------
+# Live prices (WebSocket)
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws/prices/{ticker}")
+async def ws_prices(websocket: WebSocket, ticker: str):
+    """
+    Streams a live-ish quote for `ticker` every 5 seconds.
+    yfinance isn't push-based, so this polls server-side and pushes
+    to the client — frontend just opens one connection.
+    """
+    await websocket.accept()
+    ticker = ticker.upper()
+    try:
+        while True:
+            quote_data = await asyncio.to_thread(ml.get_latest_quote, ticker)
+            if quote_data:
+                quote_data["currency_symbol"] = ml.get_currency_symbol(ticker)
+                await websocket.send_json(quote_data)
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
