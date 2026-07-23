@@ -319,6 +319,20 @@ def load_models() -> dict:
     global _models_cache
     if _models_cache is not None:
         return _models_cache
+
+    if not os.path.exists(MODEL_PATH):
+        model_url = os.getenv("MODEL_URL")
+        if model_url:
+            try:
+                print("Downloading stock_models.pkl from MODEL_URL...")
+                resp = requests.get(model_url, timeout=180)
+                resp.raise_for_status()
+                with open(MODEL_PATH, "wb") as f:
+                    f.write(resp.content)
+                print("Model file downloaded successfully.")
+            except Exception as e:
+                print(f"Failed to download model file: {e}")
+
     try:
         with open(MODEL_PATH, "rb") as f:
             _models_cache = pickle.load(f)
