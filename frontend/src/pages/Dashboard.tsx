@@ -329,6 +329,11 @@ export default function Dashboard() {
                 content: <NewsPanel ticker={ticker} />,
               },
               {
+                id: 'model-comparison',
+                label: 'Model Comparison',
+                content: <ModelComparisonView ticker={ticker} />,
+              },
+              {
                 id: 'fundamentals',
                 label: 'Fundamentals',
                 content: <FundamentalsCard ticker={ticker} />,
