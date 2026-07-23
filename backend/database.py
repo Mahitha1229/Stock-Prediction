@@ -13,13 +13,6 @@ def create_db():
         username TEXT, stock TEXT,
         PRIMARY KEY (username, stock),
         FOREIGN KEY (username) REFERENCES users(username))""")
-    c.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT,
-        role TEXT,
-        content TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (username) REFERENCES users(username))""")
     conn.commit()
     conn.close()
 
@@ -73,43 +66,3 @@ def get_watchlist(username: str) -> list[str]:
     stocks = [row[0] for row in c.fetchall()]
     conn.close()
     return stocks
-
-
-def save_chat_message(username: str, role: str, content: str):
-    """role should be 'user' or 'assistant'."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO chat_messages (username, role, content) VALUES (?, ?, ?)",
-        (username, role, content),
-    )
-    conn.commit()
-    conn.close()
-
-
-def get_chat_history(username: str, limit: int = 100) -> list[dict]:
-    """Returns messages oldest -> newest, capped at `limit` most recent."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        """SELECT role, content, created_at FROM chat_messages
-           WHERE username = ?
-           ORDER BY id DESC
-           LIMIT ?""",
-        (username, limit),
-    )
-    rows = c.fetchall()
-    conn.close()
-    # rows came back newest -> oldest because of ORDER BY id DESC; flip for display
-    return [
-        {"role": r[0], "content": r[1], "created_at": r[2]}
-        for r in reversed(rows)
-    ]
-
-
-def clear_chat_history(username: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("DELETE FROM chat_messages WHERE username = ?", (username,))
-    conn.commit()
-    conn.close()
