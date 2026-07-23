@@ -338,3 +338,18 @@ def prediction_history(ticker: str):
         })
 
     return {"ticker": ticker, "history": results}
+
+@app.get("/stock/{ticker}/model-comparison")
+def model_comparison(ticker: str):
+    ticker = ticker.upper()
+    model_dict = all_models.get(ticker) or ml.get_cached_on_demand_model(ticker)
+    if not model_dict:
+        raise HTTPException(status_code=404, detail="No trained model available yet for this ticker — view the Predict tab first")
+
+    result = ml.predict_with_breakdown(ticker, model_dict)
+    if not result:
+        raise HTTPException(status_code=422, detail="Could not compute model breakdown for this ticker")
+
+    result["currency_symbol"] = ml.get_currency_symbol(ticker)
+    result["on_demand"] = bool(model_dict.get("on_demand"))
+    return result
