@@ -513,3 +513,72 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
     height: 300px;
   }
 }
+
+/* ================= FLOATING CHAT WIDGET ================= */
+
+.floating-chat-bubble {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #17120A;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  transition: transform 0.15s ease;
+}
+
+.floating-chat-bubble:hover {
+  transform: scale(1.06);
+}
+
+.floating-chat-panel {
+  position: fixed;
+  bottom: 92px;
+  right: 24px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  height: 480px;
+  max-height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+  z-index: 99;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  padding: 16px;
+}
+
+.floating-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.floating-chat-close {
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+@media (max-width: 480px) {
+  .floating-chat-panel {
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-width: none;
+    bottom: 88px;
+    height: 60vh;
+  }
+
+  .floating-chat-bubble {
+    bottom: 16px;
+    right: 16px;
+  }
+}
