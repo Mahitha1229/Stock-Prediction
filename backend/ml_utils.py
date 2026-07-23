@@ -605,64 +605,7 @@ def predict_next_day(ticker: str, model_dict: dict):
 
     target_date = _next_trading_day(datetime.now()).strftime("%Y-%m-%d")
     return predicted_price, target_date, confidence
-
-def predict_with_breakdown(ticker: str, model_dict: dict):
-    """Same computation as predict_next_day, but also returns each individual
-    model's prediction separately — used for the model comparison view."""
-    hist = get_cached_stock_history(ticker, period="60d")
-    if hist.empty:
-        return None
-
-    data = get_technical_indicators(hist)
-    features = ["Close", "RSI", "Stochastic", "ROC", "ADX"]
-    scaler = model_dict["scaler"]
-    time_step = model_dict["time_step"]
-
-    if len(data) < time_step:
-        return None
-
-    data_scaled = scaler.transform(data[features].tail(time_step))
-    X_flat = data_scaled.reshape(1, -1)
-
-    def _inverse(scaled_val: float) -> float:
-        row = np.zeros((1, len(features)))
-        row[0, 0] = scaled_val
-        return float(scaler.inverse_transform(row)[0, 0])
-
-    breakdown = {}
-
-    if "lstm" in model_dict:
-        X_lstm = data_scaled.reshape(1, time_step, len(features))
-        scaled_val = float(model_dict["lstm"].predict(X_lstm, verbose=0)[0][0])
-        breakdown["LSTM"] = round(_inverse(scaled_val), 2)
-
-    if "xgb" in model_dict:
-        scaled_val = float(model_dict["xgb"].predict(X_flat)[0])
-        breakdown["XGBoost"] = round(_inverse(scaled_val), 2)
-
-    if "rf" in model_dict:
-        scaled_val = float(model_dict["rf"].predict(X_flat)[0])
-        breakdown["Random Forest"] = round(_inverse(scaled_val), 2)
-
-    if not breakdown:
-        return None
-
-    ensemble_price = round(sum(breakdown.values()) / len(breakdown), 2)
-
-    def _next_trading_day(d: datetime) -> datetime:
-        nxt = d + timedelta(days=1)
-        while nxt.weekday() >= 5:
-            nxt += timedelta(days=1)
-        return nxt
-
-    target_date = _next_trading_day(datetime.now()).strftime("%Y-%m-%d")
-
-    return {
-        "ticker": ticker.upper(),
-        "target_date": target_date,
-        "models": breakdown,
-        "ensemble_price": ensemble_price,
-    }
+    
 
 # === Add this to ml_utils.py ===
 
