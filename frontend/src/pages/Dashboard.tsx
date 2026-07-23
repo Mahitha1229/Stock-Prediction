@@ -314,8 +314,20 @@ export default function Dashboard() {
             </div>
           )}
 
-          <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} />
-          <NewsPanel ticker={ticker} />
+          <TickerTabs
+            tabs={[
+              {
+                id: 'history',
+                label: 'Prediction History',
+                content: <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} />,
+              },
+              {
+                id: 'news',
+                label: 'News',
+                content: <NewsPanel ticker={ticker} />,
+              },
+            ]}
+          />
         </div>
 
         <div className="panel">
