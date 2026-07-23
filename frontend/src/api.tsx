@@ -136,7 +136,7 @@ export interface ChatMessage {
 }
 
 export async function sendChatMessage(message: string, history: ChatMessage[]) {
-  const { data } = await api.post('/chat', { message, history })
+  const { data } = await api.post('/chat', { message, history }, { timeout: 45000 })
   return data.reply as string
 }
 
