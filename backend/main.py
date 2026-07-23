@@ -329,10 +329,6 @@ def prediction_history(ticker: str):
         errors_abs_pct = [abs(r["error_pct"]) for r in resolved if r["error_pct"] is not None]
         mae_pct = round(sum(errors_abs_pct) / len(errors_abs_pct), 2) if errors_abs_pct else None
 
-        # Directional accuracy: did the prediction correctly call the
-        # direction of movement relative to the price at prediction time?
-        # We approximate "prediction time price" using the closest prior
-        # close before the target date, since we don't separately store it.
         directional_correct = 0
         directional_total = 0
         sorted_hist = hist.sort_index() if not hist.empty else hist
@@ -418,17 +414,15 @@ def backtest(ticker: str, starting_capital: float = 10000.0):
         prior = hist[hist_naive_index < target_ts]
         after = hist[hist_naive_index >= target_ts]
         if prior.empty or after.empty:
-            continue  # can't resolve this prediction yet — skip it in the simulation
+            continue
 
         prior_close = float(prior["Close"].iloc[-1])
         actual_close = float(after["Close"].iloc[0])
         predicted_up = r["predicted_price"] > prior_close
 
-        # Buy-and-hold: buy once, at the very first resolvable point
         if buy_hold_units is None:
             buy_hold_units = starting_capital / prior_close
 
-        # Strategy: only exposed to the day's move when the model predicted "up"
         day_return = (actual_close - prior_close) / prior_close
         if predicted_up:
             strategy_value *= (1 + day_return)
