@@ -588,8 +588,14 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
     width: auto;
     max-width: none;
     bottom: 88px;
-    height: 60vh;
+    height: 75vh;
   }
+
+  .floating-chat-bubble {
+    bottom: 16px;
+    right: 16px;
+  }
+}
 
   .floating-chat-bubble {
     bottom: 16px;
