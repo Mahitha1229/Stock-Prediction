@@ -314,12 +314,7 @@ export default function Dashboard() {
           )}
 
           <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} />
-        </div>
-
-        <div className="panel">
-          <Watchlist onSelect={(t) => selectTicker(t)} />
-        </div>
-      </div>
+          <NewsPanel ticker={ticker} />
         </div>
 
         <div className="panel">
