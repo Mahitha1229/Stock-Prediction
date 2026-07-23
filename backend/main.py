@@ -337,7 +337,46 @@ def prediction_history(ticker: str):
             "status": "resolved" if actual_price is not None else "pending",
         })
 
-    return {"ticker": ticker, "history": results}
+    resolved = [r for r in results if r["status"] == "resolved"]
+    summary = None
+    if resolved:
+        errors_abs_pct = [abs(r["error_pct"]) for r in resolved if r["error_pct"] is not None]
+        mae_pct = round(sum(errors_abs_pct) / len(errors_abs_pct), 2) if errors_abs_pct else None
+
+        # Directional accuracy: did the prediction correctly call the
+        # direction of movement relative to the price at prediction time?
+        # We approximate "prediction time price" using the closest prior
+        # close before the target date, since we don't separately store it.
+        directional_correct = 0
+        directional_total = 0
+        sorted_hist = hist.sort_index() if not hist.empty else hist
+        for r in resolved:
+            try:
+                target_ts = pd.Timestamp(r["prediction_date"])
+                prior = sorted_hist[sorted_hist.index.tz_localize(None) < target_ts] if sorted_hist.index.tz is not None else sorted_hist[sorted_hist.index < target_ts]
+                if prior.empty:
+                    continue
+                prior_close = float(prior["Close"].iloc[-1])
+                predicted_up = r["predicted_price"] > prior_close
+                actual_up = r["actual_price"] > prior_close
+                if predicted_up == actual_up:
+                    directional_correct += 1
+                directional_total += 1
+            except Exception:
+                continue
+
+        directional_accuracy_pct = (
+            round((directional_correct / directional_total) * 100, 1) if directional_total > 0 else None
+        )
+
+        summary = {
+            "resolved_count": len(resolved),
+            "mean_abs_error_pct": mae_pct,
+            "directional_accuracy_pct": directional_accuracy_pct,
+            "directional_sample_size": directional_total,
+        }
+
+    return {"ticker": ticker, "history": results, "summary": summary}
 
 @app.get("/stock/{ticker}/model-comparison")
 def model_comparison(ticker: str):
