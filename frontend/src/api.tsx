@@ -283,3 +283,17 @@ export async function fetchFundamentals(ticker: string) {
   const { data } = await api.get(`/stock/${ticker}/fundamentals`)
   return data as Fundamentals
 }
+
+export interface ModelComparison {
+  ticker: string
+  target_date: string
+  models: Record<string, number>
+  ensemble_price: number
+  currency_symbol: string
+  on_demand: boolean
+}
+
+export async function fetchModelComparison(ticker: string) {
+  const { data } = await api.get(`/stock/${ticker}/model-comparison`)
+  return data as ModelComparison
+}
