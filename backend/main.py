@@ -259,6 +259,13 @@ def predict(ticker: str):
 def news(ticker: str, limit: int = 6):
     return {"articles": ml.get_stock_news(ticker.upper(), limit=limit)}
 
+@app.get("/stock/{ticker}/fundamentals")
+def fundamentals(ticker: str):
+    data = ml.get_fundamentals(ticker.upper())
+    if not data:
+        raise HTTPException(status_code=404, detail="No fundamentals data found for this ticker")
+    return data
+
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest, user: str = Depends(get_current_user)):
     history = [{"role": m.role, "content": m.content} for m in req.history]
