@@ -370,7 +370,7 @@ def prediction_history(ticker: str):
 @app.get("/stock/{ticker}/model-comparison")
 def model_comparison(ticker: str):
     ticker = ticker.upper()
-    model_dict = all_models.get(ticker) or ml.get_cached_on_demand_model(ticker)
+    model_dict = ml.get_curated_model(ticker) or ml.get_cached_on_demand_model(ticker)
     if not model_dict:
         raise HTTPException(status_code=404, detail="No trained model available yet for this ticker — view the Predict tab first")
 
