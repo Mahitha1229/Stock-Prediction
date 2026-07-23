@@ -6,6 +6,7 @@ import Watchlist from '../components/Watchlist'
 import PredictionHistory from '../components/PredictionHistory'
 import FloatingChat from '../components/FloatingChat'
 import ChartSkeleton from '../components/ChartSkeleton'
+import NewsPanel from '../components/NewsPanel'
 
 import {
   Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
