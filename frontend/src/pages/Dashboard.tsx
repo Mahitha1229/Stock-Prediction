@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext'
 import CandlestickChart from '../components/CandlestickChart'
 import TickerTape from '../components/TickerTape'
 import Watchlist from '../components/Watchlist'
-import Chat from '../components/Chat'
 import PredictionHistory from '../components/PredictionHistory'
 import FloatingChat from '../components/FloatingChat'
 
@@ -296,33 +295,31 @@ export default function Dashboard() {
           </div>
 
           {prediction && prediction.status === 'done' && (
-  <div className="card card--prediction">
-    <div className="label">Prediction for {prediction.prediction_date}</div>
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
-      <span className="price-lg">{prediction.currency_symbol}{prediction.predicted_price?.toFixed(2) ?? '—'}</span>
-    </div>
-    {prediction.confidence_low != null && prediction.confidence_high != null && (
-      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-        95% confidence range: {prediction.currency_symbol}{prediction.confidence_low.toFixed(2)} – {prediction.currency_symbol}{prediction.confidence_high.toFixed(2)}
-      </div>
-    )}
-    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-      {prediction.on_demand ? '⚡ On-demand model (XGBoost + Random Forest ensemble)' : '🎯 Curated model (LSTM + XGBoost + Random Forest ensemble)'}
-    </div>
-  </div>
-)}
+            <div className="card card--prediction">
+              <div className="label">Prediction for {prediction.prediction_date}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
+                <span className="price-lg">{prediction.currency_symbol}{prediction.predicted_price?.toFixed(2) ?? '—'}</span>
+              </div>
+              {prediction.confidence_low != null && prediction.confidence_high != null && (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  95% confidence range: {prediction.currency_symbol}{prediction.confidence_low.toFixed(2)} – {prediction.currency_symbol}{prediction.confidence_high.toFixed(2)}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
+                {prediction.on_demand ? '⚡ On-demand model (XGBoost + Random Forest ensemble)' : '🎯 Curated model (LSTM + XGBoost + Random Forest ensemble)'}
+              </div>
+            </div>
+          )}
+
           <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} />
         </div>
 
         <div className="panel">
           <Watchlist onSelect={(t) => selectTicker(t)} />
-          </div>
-      <FloatingChat />
-    </div>
-  )
-}
         </div>
       </div>
+
+      <FloatingChat />
     </div>
   )
 }
