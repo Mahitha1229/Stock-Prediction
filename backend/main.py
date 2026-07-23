@@ -17,14 +17,20 @@ from auth import create_access_token, get_current_user
 
 app = FastAPI(title="AI/ML Finance Market Predictor API")
 
+import os
+
+origins = ["http://localhost:5173", "http://localhost:3000"]
+prod_origin = os.getenv("FRONTEND_URL")
+if prod_origin:
+    origins.append(prod_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 db.create_db()
 all_models = ml.load_models()
 _prediction_jobs: dict[str, dict] = {}
