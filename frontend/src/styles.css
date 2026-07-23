@@ -565,6 +565,10 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
   white-space: normal;
 }
 
+.floating-chat-panel .chat-bubble {
+  max-width: 100%;
+}
+
 .floating-chat-header {
   display: flex;
   justify-content: space-between;
