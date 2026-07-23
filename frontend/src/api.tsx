@@ -240,9 +240,19 @@ export interface PredictionHistoryEntry {
   status: 'resolved' | 'pending'
 }
 
-export async function fetchPredictionHistory(ticker: string): Promise<PredictionHistoryEntry[]> {
+export interface PredictionSummary {
+  resolved_count: number
+  mean_abs_error_pct: number | null
+  directional_accuracy_pct: number | null
+  directional_sample_size: number
+}
+
+export async function fetchPredictionHistory(ticker: string): Promise<{
+  history: PredictionHistoryEntry[]
+  summary: PredictionSummary | null
+}> {
   const res = await api.get(`/stock/${ticker}/prediction-history`)
-  return res.data.history
+  return { history: res.data.history, summary: res.data.summary }
 }
 
 export interface NewsArticle {
