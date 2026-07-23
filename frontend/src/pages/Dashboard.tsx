@@ -336,7 +336,7 @@ export default function Dashboard() {
               {
                 id: 'history',
                 label: 'Prediction History',
-                content: <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} />,
+                content: <PredictionHistory ticker={ticker} rows={predictionHistory} loading={historyLoading} summary={predictionSummary} />,
               },
               {
                 id: 'news',
