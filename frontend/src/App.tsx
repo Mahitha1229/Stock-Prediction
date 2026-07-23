@@ -12,7 +12,7 @@ export default function App() {
   if (!token) return <Login />
 
   return (
-    <ErrorBoundary fallbackTitle="Quantis hit a snag">
+    <ErrorBoundary fallbackTitle="StockSense hit a snag">
       <ChatProvider>
         <BrowserRouter>
           <Routes>
