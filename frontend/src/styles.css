@@ -439,3 +439,64 @@ button.ghost:hover { border-color: var(--accent-dim); color: var(--text-primary)
 .live-dot--warn {
   background: #e0a52c;
 }
+
+/* ================= MOBILE RESPONSIVENESS ================= */
+
+@media (max-width: 640px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .topbar > div[style*="flex: 1"] {
+    order: 3;
+    max-width: 100% !important;
+    margin: 0 !important;
+    width: 100%;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .price-lg {
+    font-size: 24px;
+  }
+
+  .chat-panel {
+    height: 340px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .brand {
+    font-size: 16px;
+  }
+
+  /* Prediction history table: allow horizontal scroll instead of squeezing */
+  .card:has(.history-table) {
+    overflow-x: auto;
+  }
+
+  .history-table {
+    min-width: 480px;
+  }
+
+  .auth-card {
+    width: 90vw;
+    max-width: 340px;
+  }
+}
+
+@media (max-width: 400px) {
+  .price-lg {
+    font-size: 20px;
+  }
+
+  .chat-panel {
+    height: 300px;
+  }
+}
