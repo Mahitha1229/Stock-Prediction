@@ -5,6 +5,7 @@ import TickerTape from '../components/TickerTape'
 import Watchlist from '../components/Watchlist'
 import PredictionHistory from '../components/PredictionHistory'
 import FloatingChat from '../components/FloatingChat'
+import ChartSkeleton from '../components/ChartSkeleton'
 
 import {
   Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry,
