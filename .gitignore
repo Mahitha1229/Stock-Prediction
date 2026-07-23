@@ -57,3 +57,4 @@ yarn-error.log*
 Thumbs.db
 
 backend/stock_models.pkl
+frontend/.env
