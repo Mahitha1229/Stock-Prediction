@@ -171,7 +171,7 @@ export default function Dashboard() {
       <div className="topbar">
         <div className="brand"><span className="brand__mark" />Quantis</div>
 
-        <div style={{ position: 'relative', flex: 1, maxWidth: 360, margin: '0 24px' }}>
+        <div className="topbar-search" style={{ position: 'relative', flex: 1, maxWidth: 360, margin: '0 24px' }}>
           <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
