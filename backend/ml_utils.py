@@ -538,21 +538,24 @@ def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
 def get_fundamentals(ticker: str) -> dict:
     try:
         info = yf.Ticker(ticker).info
-        return {
-            "ticker": ticker.upper(),
-            "name": info.get("shortName"),
-            "sector": info.get("sector"),
-            "industry": info.get("industry"),
-            "market_cap": info.get("marketCap"),
-            "pe_ratio": info.get("trailingPE"),
-            "eps": info.get("trailingEps"),
-            "dividend_yield_pct": round(info["dividendYield"], 2) if info.get("dividendYield") else None,
-            "week_52_high": info.get("fiftyTwoWeekHigh"),
-            "week_52_low": info.get("fiftyTwoWeekLow"),
-        }
+        if info and info.get("shortName"):
+            return {
+                "ticker": ticker.upper(),
+                "name": info.get("shortName"),
+                "sector": info.get("sector"),
+                "industry": info.get("industry"),
+                "market_cap": info.get("marketCap"),
+                "pe_ratio": info.get("trailingPE"),
+                "eps": info.get("trailingEps"),
+                "dividend_yield_pct": round(info["dividendYield"], 2) if info.get("dividendYield") else None,
+                "week_52_high": info.get("fiftyTwoWeekHigh"),
+                "week_52_low": info.get("fiftyTwoWeekLow"),
+            }
     except Exception as e:
         print(f"Fundamentals fetch failed for {ticker}: {e}")
-        return {}
+
+    # yfinance failed or was rate-limited — try Finnhub as a secondary source
+    return _fetch_fundamentals_finnhub(ticker)
 
 
 # ---------- On-demand models ----------
