@@ -90,11 +90,12 @@ export default function Dashboard() {
   }, [ticker])
 
   function selectTicker(symbol: string) {
-    setTicker(symbol)
-    setInputValue(symbol)
-    setShowResults(false)
-    setSearchResults([])
-  }
+  setTicker(symbol)
+  setInputValue(symbol)
+  setShowResults(false)
+  setSearchResults([])
+  localStorage.setItem('lastTicker', symbol)
+}
 
   useEffect(() => {
     let cancelled = false
