@@ -220,15 +220,18 @@ def _fetch_fundamentals_finnhub(ticker: str) -> dict:
         )
         metrics = metrics_resp.json().get("metric", {})
 
+        raw_market_cap = profile.get("marketCapitalization")
+        raw_dividend_yield = metrics.get("dividendYieldIndicatedAnnual")
+
         return {
             "ticker": ticker.upper(),
             "name": profile.get("name"),
             "sector": profile.get("finnhubIndustry"),
-            "industry": profile.get("finnhubIndustry"),
-            "market_cap": profile.get("marketCapitalization"),
+            "industry": None,  # Finnhub free tier doesn't separate sector/industry
+            "market_cap": round(raw_market_cap * 1_000_000) if raw_market_cap else None,
             "pe_ratio": metrics.get("peExclExtraTTM"),
             "eps": metrics.get("epsExclExtraItemsTTM"),
-            "dividend_yield_pct": metrics.get("dividendYieldIndicatedAnnual"),
+            "dividend_yield_pct": round(raw_dividend_yield, 2) if raw_dividend_yield else None,
             "week_52_high": metrics.get("52WeekHigh"),
             "week_52_low": metrics.get("52WeekLow"),
         }
