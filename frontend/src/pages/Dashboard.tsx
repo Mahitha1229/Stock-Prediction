@@ -17,8 +17,8 @@ import {
 } from '../api'
 export default function Dashboard() {
   const { username, logout } = useAuth()
-  const [ticker, setTicker] = useState('AAPL')
-  const [inputValue, setInputValue] = useState('AAPL')
+  const [ticker, setTicker] = useState(() => localStorage.getItem('lastTicker') || 'AAPL')
+  const [inputValue, setInputValue] = useState(() => localStorage.getItem('lastTicker') || 'AAPL')
   const [candles, setCandles] = useState<Candle[]>([])
   const [liveQuote, setLiveQuote] = useState<Quote | null>(null)
   const [prediction, setPrediction] = useState<Prediction | null>(null)
