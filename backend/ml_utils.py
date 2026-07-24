@@ -197,6 +197,45 @@ def _fetch_quote_finnhub(ticker: str) -> dict:
     except Exception:
         return {}
 
+def _fetch_fundamentals_finnhub(ticker: str) -> dict:
+    """Secondary fundamentals source when yfinance is rate-limited.
+    Finnhub's free tier covers company profile + basic financials for
+    most major exchanges; international coverage is more limited than US."""
+    if not FINNHUB_API_KEY:
+        return {}
+    try:
+        profile_resp = requests.get(
+            "https://finnhub.io/api/v1/stock/profile2",
+            params={"symbol": ticker, "token": FINNHUB_API_KEY},
+            timeout=8,
+        )
+        profile = profile_resp.json()
+        if not profile or not profile.get("name"):
+            return {}
+
+        metrics_resp = requests.get(
+            "https://finnhub.io/api/v1/stock/metric",
+            params={"symbol": ticker, "metric": "all", "token": FINNHUB_API_KEY},
+            timeout=8,
+        )
+        metrics = metrics_resp.json().get("metric", {})
+
+        return {
+            "ticker": ticker.upper(),
+            "name": profile.get("name"),
+            "sector": profile.get("finnhubIndustry"),
+            "industry": profile.get("finnhubIndustry"),
+            "market_cap": profile.get("marketCapitalization"),
+            "pe_ratio": metrics.get("peExclExtraTTM"),
+            "eps": metrics.get("epsExclExtraItemsTTM"),
+            "dividend_yield_pct": metrics.get("dividendYieldIndicatedAnnual"),
+            "week_52_high": metrics.get("52WeekHigh"),
+            "week_52_low": metrics.get("52WeekLow"),
+        }
+    except Exception as e:
+        print(f"Finnhub fundamentals fetch failed for {ticker}: {e}")
+        return {}
+
 
 def get_stock_history(ticker: str, period: str = "1y", interval: str = "1d"):
     hist = yf.Ticker(ticker).history(period=period, interval=interval)
