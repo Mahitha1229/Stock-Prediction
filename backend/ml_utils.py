@@ -173,6 +173,42 @@ def _fetch_history_twelvedata(ticker: str, period: str = "1y", interval: str = "
     except Exception:
         return pd.DataFrame()
 
+def _fetch_news_newsapi(ticker: str, limit: int = 6) -> list[dict]:
+    """Secondary news source when yfinance returns nothing (rate-limited
+    or no coverage for this ticker). Searches by ticker symbol, which is
+    less precise than yfinance's ticker-specific news feed — results may
+    include some unrelated articles that happen to mention the symbol."""
+    if not NEWSAPI_API_KEY:
+        return []
+    try:
+        resp = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": ticker,
+                "sortBy": "publishedAt",
+                "language": "en",
+                "pageSize": limit,
+                "apiKey": NEWSAPI_API_KEY,
+            },
+            timeout=8,
+        )
+        data = resp.json()
+        if data.get("status") != "ok":
+            return []
+        articles = []
+        for item in data.get("articles", [])[:limit]:
+            title = item.get("title")
+            if title:
+                articles.append({
+                    "title": title,
+                    "publisher": (item.get("source") or {}).get("name"),
+                    "url": item.get("url"),
+                })
+        return articles
+    except Exception as e:
+        print(f"NewsAPI fetch failed for {ticker}: {e}")
+        return []
+    
 
 def _fetch_quote_finnhub(ticker: str) -> dict:
     """Secondary live-quote source. Finnhub's free tier gives real-time US
