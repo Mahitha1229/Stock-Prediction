@@ -511,7 +511,8 @@ def get_fundamentals(ticker: str) -> dict:
             "week_52_high": info.get("fiftyTwoWeekHigh"),
             "week_52_low": info.get("fiftyTwoWeekLow"),
         }
-    except Exception:
+    except Exception as e:
+        print(f"Fundamentals fetch failed for {ticker}: {e}")
         return {}
 
 
