@@ -570,9 +570,13 @@ def get_stock_news(ticker: str, limit: int = 6) -> list[dict]:
                 publisher = item.get("publisher")
             if title:
                 articles.append({"title": title, "publisher": publisher, "url": url})
-        return articles
-    except Exception:
-        return []
+        if articles:
+            return articles
+    except Exception as e:
+        print(f"yfinance news fetch failed for {ticker}: {e}")
+
+    # yfinance returned nothing or failed — try NewsAPI as a secondary source
+    return _fetch_news_newsapi(ticker, limit=limit)
 
 
 def get_fundamentals(ticker: str) -> dict:
