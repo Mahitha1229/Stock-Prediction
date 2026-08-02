@@ -1,38 +1,16 @@
-import { useEffect, useState } from 'react'
-import { fetchWeeklyPredictionWithPolling, WeeklyPrediction as WeeklyPredictionData } from '../api'
+import { WeeklyPrediction as WeeklyPredictionData } from '../api'
 
-export default function WeeklyPrediction({ ticker }: { ticker: string }) {
-  const [data, setData] = useState<WeeklyPredictionData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setData(null)
-    setError(null)
-    setLoading(true)
-
-    fetchWeeklyPredictionWithPolling(
-      ticker,
-      (result) => {
-        if (!cancelled) {
-          setData(result)
-          setLoading(false)
-        }
-      },
-      () => cancelled,
-    ).catch((err) => {
-      if (!cancelled) {
-        setError(err.message || 'Failed to load weekly prediction')
-        setLoading(false)
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [ticker])
-
+export default function WeeklyPrediction({
+  ticker,
+  data,
+  loading,
+  error,
+}: {
+  ticker: string
+  data: WeeklyPredictionData | null
+  loading: boolean
+  error: string | null
+}) {
   if (loading) {
     return (
       <div className="card">
