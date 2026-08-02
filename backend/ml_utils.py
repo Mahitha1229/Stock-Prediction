@@ -815,6 +815,108 @@ def predict_with_breakdown(ticker: str, model_dict: dict):
         "ensemble_prediction": ensemble_avg,
     }
 
+def predict_weekly_average(ticker: str, model_dict: dict, days: int = 5):
+    """Recursively forecasts `days` trading days ahead (default: one trading
+    week) and returns the average predicted close price plus a day-by-day
+    breakdown. Since future High/Low/Volume aren't known, each forecasted
+    day is fed back in as a synthetic Open=High=Low=Close row so rolling
+    indicators (RSI/Stochastic/ROC/ADX) can still be recomputed for the
+    next step. Confidence widens with each day out."""
+    hist = get_cached_stock_history(ticker, period="90d")
+    if hist.empty:
+        return None, "No data available for this stock", None
+
+    features = ["Close", "RSI", "Stochastic", "ROC", "ADX"]
+    scaler = model_dict["scaler"]
+    time_step = model_dict["time_step"]
+
+    data = get_technical_indicators(hist)
+    if len(data) < time_step:
+        return None, "Not enough recent data for this stock", None
+
+    def _inverse(scaled_val: float) -> float:
+        row = np.zeros((1, len(features)))
+        row[0, 0] = scaled_val
+        return float(scaler.inverse_transform(row)[0, 0])
+
+    def _next_trading_day(d: datetime) -> datetime:
+        nxt = d + timedelta(days=1)
+        while nxt.weekday() >= 5:
+            nxt += timedelta(days=1)
+        return nxt
+
+    recent_returns = data["Close"].pct_change().dropna().tail(30)
+    volatility_floor_pct = float(recent_returns.std()) if len(recent_returns) > 5 else 0.0
+
+    working_hist = hist.copy()
+    last_known_volume = float(working_hist["Volume"].iloc[-1])
+    daily_predictions = []
+
+    for day_offset in range(1, days + 1):
+        working_data = get_technical_indicators(working_hist)
+        if len(working_data) < time_step:
+            break
+
+        data_scaled = scaler.transform(working_data[features].tail(time_step))
+        X_flat = data_scaled.reshape(1, -1)
+
+        scaled_preds = []
+        if "lstm" in model_dict:
+            X_lstm = data_scaled.reshape(1, time_step, len(features))
+            scaled_preds.append(float(model_dict["lstm"].predict(X_lstm, verbose=0)[0][0]))
+        if "xgb" in model_dict:
+            scaled_preds.append(float(model_dict["xgb"].predict(X_flat)[0]))
+        if "rf" in model_dict:
+            scaled_preds.append(float(model_dict["rf"].predict(X_flat)[0]))
+
+        if not scaled_preds:
+            return None, "No valid model components available", None
+
+        individual_price_preds = [_inverse(v) for v in scaled_preds]
+        predicted_price = float(np.mean(individual_price_preds))
+
+        model_disagreement = float(np.std(individual_price_preds)) if len(individual_price_preds) > 1 else 0.0
+        # Uncertainty compounds the further out we forecast
+        compounding_factor = day_offset ** 0.5
+        day_std = max(model_disagreement, volatility_floor_pct * predicted_price) * compounding_factor
+
+        last_date = working_hist.index[-1]
+        target_date = _next_trading_day(
+            last_date.to_pydatetime() if hasattr(last_date, "to_pydatetime") else last_date
+        )
+
+        daily_predictions.append({
+            "date": target_date.strftime("%Y-%m-%d"),
+            "predicted_price": round(predicted_price, 2),
+            "confidence_low": round(predicted_price - 1.96 * day_std, 2),
+            "confidence_high": round(predicted_price + 1.96 * day_std, 2),
+        })
+
+        new_row = pd.DataFrame(
+            {
+                "Open": [predicted_price],
+                "High": [predicted_price],
+                "Low": [predicted_price],
+                "Close": [predicted_price],
+                "Volume": [last_known_volume],
+            },
+            index=pd.DatetimeIndex([target_date]),
+        )
+        working_hist = pd.concat([working_hist, new_row])
+
+    if not daily_predictions:
+        return None, "Could not generate a weekly forecast for this stock", None
+
+    weekly_average = round(float(np.mean([d["predicted_price"] for d in daily_predictions])), 2)
+    current_price = float(hist["Close"].iloc[-1])
+    change_pct = round(((weekly_average - current_price) / current_price) * 100, 2)
+
+    return weekly_average, current_price, {
+        "daily_predictions": daily_predictions,
+        "change_pct": change_pct,
+        "week_start": daily_predictions[0]["date"],
+        "week_end": daily_predictions[-1]["date"],
+    }
 
 # ---------- Trending tickers ----------
 
