@@ -93,3 +93,52 @@ def _get_conn():
     )""")
     conn.commit()
     return conn
+def save_weekly_prediction(ticker: str, week_start: str, week_end: str,
+                            weekly_average_price: float, currency_symbol: str, model_type: str):
+    """Records a weekly-average prediction. If the same ticker already got a
+    prediction for this same week (same week_start) today, updates it instead
+    of creating a duplicate."""
+    conn = _get_conn()
+    c = conn.cursor()
+    today = datetime.now().strftime("%Y-%m-%d")
+    c.execute(
+        "SELECT id FROM weekly_predictions WHERE ticker=%s AND week_start=%s AND created_at::date=%s",
+        (ticker, week_start, today),
+    )
+    existing = c.fetchone()
+    if existing:
+        c.execute(
+            "UPDATE weekly_predictions SET week_end=%s, weekly_average_price=%s, currency_symbol=%s, model_type=%s WHERE id=%s",
+            (week_end, weekly_average_price, currency_symbol, model_type, existing[0]),
+        )
+    else:
+        c.execute(
+            "INSERT INTO weekly_predictions (ticker, week_start, week_end, weekly_average_price, currency_symbol, model_type, created_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (ticker, week_start, week_end, weekly_average_price, currency_symbol, model_type, datetime.now().isoformat()),
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_weekly_predictions_for_ticker(ticker: str, limit: int = 12) -> list[dict]:
+    conn = _get_conn()
+    c = conn.cursor()
+    c.execute(
+        "SELECT week_start, week_end, weekly_average_price, currency_symbol, model_type, created_at "
+        "FROM weekly_predictions WHERE ticker=%s ORDER BY week_start DESC LIMIT %s",
+        (ticker, limit),
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {
+            "week_start": r[0],
+            "week_end": r[1],
+            "weekly_average_price": r[2],
+            "currency_symbol": r[3],
+            "model_type": r[4],
+            "created_at": r[5],
+        }
+        for r in rows
+    ]
