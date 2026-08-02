@@ -112,6 +112,38 @@ export async function fetchPredictionWithPolling(
   }
 }
 
+export async function fetchWeeklyPrediction(ticker: string) {
+  const { data } = await api.get(`/stock/${ticker}/predict-week`)
+  return data as WeeklyPrediction
+}
+
+/**
+ * Same polling pattern as fetchPredictionWithPolling — only calls onUpdate
+ * with a FINISHED result, caps total polling time so a bad ticker fails
+ * loudly instead of polling forever.
+ */
+export async function fetchWeeklyPredictionWithPolling(
+  ticker: string,
+  onUpdate: (p: WeeklyPrediction) => void,
+  isCancelled: () => boolean,
+  intervalMs = 2000,
+  maxAttempts = 60, // ~2 minutes total
+) {
+  let attempts = 0
+  while (!isCancelled() && attempts < maxAttempts) {
+    const pred = await fetchWeeklyPrediction(ticker)
+    if (pred.status === 'done') {
+      onUpdate(pred)
+      return
+    }
+    attempts++
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+  if (!isCancelled()) {
+    throw new Error('Weekly prediction is taking longer than expected for this ticker')
+  }
+}
+
 export async function fetchWatchlist() {
   const { data } = await api.get('/watchlist')
   return data.watchlist as string[]
