@@ -13,6 +13,12 @@ import ModelComparisonView from '../components/ModelComparisonView'
 import WeeklyPrediction from '../components/WeeklyPrediction'
 import WeeklyPredictionHistory from '../components/WeeklyPredictionHistory'
 import { WeeklyPredictionHistoryEntry, fetchWeeklyPredictionHistory } from '../api'
+import WeeklyPrediction from '../components/WeeklyPrediction'
+import WeeklyPredictionHistory from '../components/WeeklyPredictionHistory'
+import {
+  WeeklyPredictionHistoryEntry, fetchWeeklyPredictionHistory,
+  WeeklyPrediction as WeeklyPredictionData, fetchWeeklyPredictionWithPolling,
+} from '../api'
 import {
   Candle, Quote, Prediction, SocketStatus, PredictionHistoryEntry, PredictionSummary,
   fetchHistory, fetchPredictionWithPolling, openPriceSocket, fetchTrendingTickers, searchTickers,
