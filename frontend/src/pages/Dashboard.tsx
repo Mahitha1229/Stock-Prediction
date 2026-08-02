@@ -368,6 +368,11 @@ const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<Predictio
                 content: <NewsPanel ticker={ticker} />,
               },
               {
+              id: 'weekly-history',
+              label: 'Weekly Accuracy',
+              content: <WeeklyPredictionHistory ticker={ticker} rows={weeklyPredictionHistory} loading={weeklyHistoryLoading} summary={weeklyPredictionSummary} />,
+              },
+              {
                 id: 'model-comparison',
                 label: 'Model Comparison',
                 content: <ModelComparisonView ticker={ticker} />,
