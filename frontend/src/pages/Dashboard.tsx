@@ -124,6 +124,26 @@ const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<Predictio
     return () => { cancelled = true }
   }, [ticker, prediction])
 
+  useEffect(() => {
+  let cancelled = false
+  setWeeklyHistoryLoading(true)
+  fetchWeeklyPredictionHistory(ticker)
+    .then(({ history, summary }) => {
+      if (!cancelled) {
+        setWeeklyPredictionHistory(history)
+        setWeeklyPredictionSummary(summary)
+      }
+    })
+    .catch(() => {
+      if (!cancelled) {
+        setWeeklyPredictionHistory([])
+        setWeeklyPredictionSummary(null)
+      }
+    })
+    .finally(() => { if (!cancelled) setWeeklyHistoryLoading(false) })
+  return () => { cancelled = true }
+}, [ticker])
+
   // Live search-as-you-type, debounced so we don't hit /search on every keystroke.
   useEffect(() => {
     const query = inputValue.trim()
