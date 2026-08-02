@@ -489,6 +489,80 @@ def predict_week(ticker: str):
     result["status"] = "done"
     return result
 
+@app.get("/stock/{ticker}/weekly-prediction-history")
+def weekly_prediction_history(ticker: str):
+    ticker = ticker.upper()
+    records = pt.get_weekly_predictions_for_ticker(ticker)
+    hist = ml.get_stock_history(ticker, period="1y")
+
+    hist_naive_index = None
+    if not hist.empty:
+        hist_naive_index = hist.index.tz_localize(None) if hist.index.tz is not None else hist.index
+
+    results = []
+    for r in records:
+        week_start_ts = pd.Timestamp(r["week_start"])
+        week_end_ts = pd.Timestamp(r["week_end"])
+
+        actual_avg = None
+        if hist_naive_index is not None:
+            mask = (hist_naive_index >= week_start_ts) & (hist_naive_index <= week_end_ts)
+            window = hist[mask]
+            if not window.empty and hist_naive_index.max() >= week_end_ts:
+                actual_avg = round(float(window["Close"].mean()), 2)
+
+        error_pct = None
+        if actual_avg is not None:
+            error_pct = round(((r["weekly_average_price"] - actual_avg) / actual_avg) * 100, 2)
+
+        results.append({
+            **r,
+            "actual_average_price": actual_avg,
+            "error_pct": error_pct,
+            "status": "resolved" if actual_avg is not None else "pending",
+        })
+
+    resolved = [r for r in results if r["status"] == "resolved"]
+    summary = None
+    if resolved:
+        errors_abs_pct = [abs(r["error_pct"]) for r in resolved if r["error_pct"] is not None]
+        mae_pct = round(sum(errors_abs_pct) / len(errors_abs_pct), 2) if errors_abs_pct else None
+
+        directional_correct = 0
+        directional_total = 0
+        sorted_hist = hist.sort_index() if not hist.empty else hist
+        for r in resolved:
+            try:
+                week_start_ts = pd.Timestamp(r["week_start"])
+                prior = (
+                    sorted_hist[sorted_hist.index.tz_localize(None) < week_start_ts]
+                    if sorted_hist.index.tz is not None
+                    else sorted_hist[sorted_hist.index < week_start_ts]
+                )
+                if prior.empty:
+                    continue
+                prior_close = float(prior["Close"].iloc[-1])
+                predicted_up = r["weekly_average_price"] > prior_close
+                actual_up = r["actual_average_price"] > prior_close
+                if predicted_up == actual_up:
+                    directional_correct += 1
+                directional_total += 1
+            except Exception:
+                continue
+
+        directional_accuracy_pct = (
+            round((directional_correct / directional_total) * 100, 1) if directional_total > 0 else None
+        )
+
+        summary = {
+            "resolved_count": len(resolved),
+            "mean_abs_error_pct": mae_pct,
+            "directional_accuracy_pct": directional_accuracy_pct,
+            "directional_sample_size": directional_total,
+        }
+
+    return {"ticker": ticker, "history": results, "summary": summary}
+
 
 @app.get("/stock/{ticker}/model-comparison")
 def model_comparison(ticker: str):
