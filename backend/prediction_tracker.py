@@ -69,3 +69,27 @@ def get_predictions_for_ticker(ticker: str, limit: int = 30) -> list[dict]:
         }
         for r in rows
     ]
+def _get_conn():
+    conn = psycopg2.connect(DATABASE_URL)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS predictions (
+        id SERIAL PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        prediction_date TEXT NOT NULL,
+        predicted_price REAL NOT NULL,
+        currency_symbol TEXT,
+        model_type TEXT,
+        created_at TEXT NOT NULL
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS weekly_predictions (
+        id SERIAL PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        week_start TEXT NOT NULL,
+        week_end TEXT NOT NULL,
+        weekly_average_price REAL NOT NULL,
+        currency_symbol TEXT,
+        model_type TEXT,
+        created_at TEXT NOT NULL
+    )""")
+    conn.commit()
+    return conn
