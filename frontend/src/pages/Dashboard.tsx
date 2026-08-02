@@ -328,7 +328,7 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-
+           <WeeklyPrediction ticker={ticker} />
           <TickerTabs
             tabs={[
               {
