@@ -171,7 +171,7 @@ const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<Predictio
     })
     .finally(() => { if (!cancelled) setWeeklyHistoryLoading(false) })
   return () => { cancelled = true }
-}, [ticker])
+}, [ticker,weeklyPrediction])
 
   // Live search-as-you-type, debounced so we don't hit /search on every keystroke.
   useEffect(() => {
