@@ -279,6 +279,18 @@ export interface PredictionSummary {
   directional_sample_size: number
 }
 
+export interface WeeklyPredictionHistoryEntry {
+  week_start: string
+  week_end: string
+  weekly_average_price: number
+  currency_symbol: string
+  model_type: string
+  created_at: string
+  actual_average_price: number | null
+  error_pct: number | null
+  status: 'resolved' | 'pending'
+}
+
 export interface DailyPrediction {
   date: string
   predicted_price: number
