@@ -319,6 +319,14 @@ export async function fetchPredictionHistory(ticker: string): Promise<{
   return { history: res.data.history, summary: res.data.summary }
 }
 
+export async function fetchWeeklyPredictionHistory(ticker: string): Promise<{
+  history: WeeklyPredictionHistoryEntry[]
+  summary: PredictionSummary | null
+}> {
+  const res = await api.get(`/stock/${ticker}/weekly-prediction-history`)
+  return { history: res.data.history, summary: res.data.summary }
+}
+
 export interface NewsArticle {
   title: string
   publisher: string | null
