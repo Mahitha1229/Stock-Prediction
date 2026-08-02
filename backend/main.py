@@ -95,6 +95,12 @@ def _train_and_store_weekly_prediction(ticker: str):
                 _weekly_prediction_jobs[ticker] = {"status": "error", "detail": current_price}
             return
 
+        currency_symbol = ml.get_currency_symbol(ticker)
+        pt.save_weekly_prediction(
+            ticker, details["week_start"], details["week_end"],
+            weekly_average, currency_symbol, "on-demand",
+        )
+
         result = {
             "ticker": ticker,
             "weekly_average_price": weekly_average,
@@ -104,7 +110,7 @@ def _train_and_store_weekly_prediction(ticker: str):
             "week_end": details["week_end"],
             "daily_predictions": details["daily_predictions"],
             "on_demand": bool(model_dict.get("on_demand")),
-            "currency_symbol": ml.get_currency_symbol(ticker),
+            "currency_symbol": currency_symbol,
         }
         with _weekly_jobs_lock:
             _weekly_prediction_jobs[ticker] = {"status": "done", "data": result}
