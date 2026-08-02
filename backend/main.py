@@ -74,6 +74,44 @@ def _train_and_store_prediction(ticker: str):
         with _prediction_jobs_lock:
             _prediction_jobs[ticker] = {"status": "error", "detail": str(e)}
 
+_weekly_prediction_jobs: dict[str, dict] = {}
+_weekly_jobs_lock = threading.Lock()
+
+
+def _train_and_store_weekly_prediction(ticker: str):
+    try:
+        model_dict = ml.get_or_train_model(ticker, all_models)
+        if not model_dict:
+            with _weekly_jobs_lock:
+                _weekly_prediction_jobs[ticker] = {
+                    "status": "error",
+                    "detail": "Not enough historical data to train a model for this stock",
+                }
+            return
+
+        weekly_average, current_price, details = ml.predict_weekly_average(ticker, model_dict)
+        if weekly_average is None:
+            with _weekly_jobs_lock:
+                _weekly_prediction_jobs[ticker] = {"status": "error", "detail": current_price}
+            return
+
+        result = {
+            "ticker": ticker,
+            "weekly_average_price": weekly_average,
+            "current_price": round(current_price, 2),
+            "change_pct": details["change_pct"],
+            "week_start": details["week_start"],
+            "week_end": details["week_end"],
+            "daily_predictions": details["daily_predictions"],
+            "on_demand": bool(model_dict.get("on_demand")),
+            "currency_symbol": ml.get_currency_symbol(ticker),
+        }
+        with _weekly_jobs_lock:
+            _weekly_prediction_jobs[ticker] = {"status": "done", "data": result}
+    except Exception as e:
+        with _weekly_jobs_lock:
+            _weekly_prediction_jobs[ticker] = {"status": "error", "detail": str(e)}
+
 
 # ---------------------------------------------------------------------------
 # Request / response models
