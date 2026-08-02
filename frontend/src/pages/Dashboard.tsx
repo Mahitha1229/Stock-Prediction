@@ -37,6 +37,10 @@ export default function Dashboard() {
   const [showResults, setShowResults] = useState(false)
   const [searching, setSearching] = useState(false)
 
+  const [weeklyHistoryLoading, setWeeklyHistoryLoading] = useState(false)
+const [weeklyPredictionHistory, setWeeklyPredictionHistory] = useState<WeeklyPredictionHistoryEntry[]>([])
+const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<PredictionSummary | null>(null)
+
   
   
 
