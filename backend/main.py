@@ -411,6 +411,69 @@ def prediction_history(ticker: str):
     return {"ticker": ticker, "history": results, "summary": summary}
 
 
+@app.get("/stock/{ticker}/predict-week")
+def predict_week(ticker: str):
+    ticker = ticker.upper()
+
+    if ticker in ml.CURATED_TICKERS:
+        model_dict = ml.get_curated_model(ticker)
+        if model_dict is None:
+            raise HTTPException(status_code=503, detail="Could not load model for this ticker right now, please try again")
+        weekly_average, current_price, details = ml.predict_weekly_average(ticker, model_dict)
+        if weekly_average is None:
+            raise HTTPException(status_code=422, detail=current_price)
+        return {
+            "ticker": ticker,
+            "weekly_average_price": weekly_average,
+            "current_price": round(current_price, 2),
+            "change_pct": details["change_pct"],
+            "week_start": details["week_start"],
+            "week_end": details["week_end"],
+            "daily_predictions": details["daily_predictions"],
+            "on_demand": False,
+            "currency_symbol": ml.get_currency_symbol(ticker),
+            "status": "done",
+        }
+
+    cached = ml.get_cached_on_demand_model(ticker)
+    if cached:
+        weekly_average, current_price, details = ml.predict_weekly_average(ticker, cached)
+        if weekly_average is None:
+            raise HTTPException(status_code=422, detail=current_price)
+        return {
+            "ticker": ticker,
+            "weekly_average_price": weekly_average,
+            "current_price": round(current_price, 2),
+            "change_pct": details["change_pct"],
+            "week_start": details["week_start"],
+            "week_end": details["week_end"],
+            "daily_predictions": details["daily_predictions"],
+            "on_demand": True,
+            "currency_symbol": ml.get_currency_symbol(ticker),
+            "status": "done",
+        }
+
+    if not ml.validate_ticker(ticker):
+        raise HTTPException(status_code=404, detail="Invalid ticker")
+
+    with _weekly_jobs_lock:
+        job = _weekly_prediction_jobs.get(ticker)
+        if job is None or job["status"] == "error":
+            _weekly_prediction_jobs[ticker] = {"status": "training"}
+            threading.Thread(target=_train_and_store_weekly_prediction, args=(ticker,), daemon=True).start()
+            job = _weekly_prediction_jobs[ticker]
+
+    if job["status"] == "training":
+        return JSONResponse(status_code=202, content={"ticker": ticker, "status": "training"})
+
+    if job["status"] == "error":
+        raise HTTPException(status_code=422, detail=job["detail"])
+
+    result = dict(job["data"])
+    result["status"] = "done"
+    return result
+
+
 @app.get("/stock/{ticker}/model-comparison")
 def model_comparison(ticker: str):
     ticker = ticker.upper()
