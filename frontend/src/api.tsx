@@ -247,6 +247,26 @@ export interface PredictionSummary {
   directional_sample_size: number
 }
 
+export interface DailyPrediction {
+  date: string
+  predicted_price: number
+  confidence_low: number
+  confidence_high: number
+}
+
+export interface WeeklyPrediction {
+  ticker: string
+  status: 'training' | 'done'
+  weekly_average_price?: number
+  current_price?: number
+  change_pct?: number
+  week_start?: string
+  week_end?: string
+  daily_predictions?: DailyPrediction[]
+  on_demand?: boolean
+  currency_symbol?: string
+}
+
 export async function fetchPredictionHistory(ticker: string): Promise<{
   history: PredictionHistoryEntry[]
   summary: PredictionSummary | null
