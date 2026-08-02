@@ -383,7 +383,7 @@ const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<Predictio
               </div>
             </div>
           )}
-           <WeeklyPrediction ticker={ticker} />
+           <WeeklyPrediction ticker={ticker} data={weeklyPrediction} loading={weeklyLoading} error={weeklyError} />
           <TickerTabs
             tabs={[
               {
