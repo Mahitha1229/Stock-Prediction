@@ -67,6 +67,26 @@ const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<Predictio
   }, [])
 
   useEffect(() => {
+  let cancelled = false
+  setWeeklyPrediction(null)
+  setWeeklyError(null)
+  setWeeklyLoading(true)
+
+  fetchWeeklyPredictionWithPolling(
+    ticker,
+    (result) => { if (!cancelled) { setWeeklyPrediction(result); setWeeklyLoading(false) } },
+    () => cancelled,
+  ).catch((err) => {
+    if (!cancelled) {
+      setWeeklyError(err.message || 'Failed to load weekly prediction')
+      setWeeklyLoading(false)
+    }
+  })
+
+  return () => { cancelled = true }
+}, [ticker])
+
+  useEffect(() => {
     let socket: { close: () => void } | null = null
     let cancelled = false
 
