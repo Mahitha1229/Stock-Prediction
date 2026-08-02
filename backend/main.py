@@ -428,6 +428,11 @@ def predict_week(ticker: str):
         weekly_average, current_price, details = ml.predict_weekly_average(ticker, model_dict)
         if weekly_average is None:
             raise HTTPException(status_code=422, detail=current_price)
+        currency_symbol = ml.get_currency_symbol(ticker)
+        pt.save_weekly_prediction(
+            ticker, details["week_start"], details["week_end"],
+            weekly_average, currency_symbol, "curated",
+        )
         return {
             "ticker": ticker,
             "weekly_average_price": weekly_average,
@@ -437,7 +442,7 @@ def predict_week(ticker: str):
             "week_end": details["week_end"],
             "daily_predictions": details["daily_predictions"],
             "on_demand": False,
-            "currency_symbol": ml.get_currency_symbol(ticker),
+            "currency_symbol": currency_symbol,
             "status": "done",
         }
 
@@ -446,6 +451,11 @@ def predict_week(ticker: str):
         weekly_average, current_price, details = ml.predict_weekly_average(ticker, cached)
         if weekly_average is None:
             raise HTTPException(status_code=422, detail=current_price)
+        currency_symbol = ml.get_currency_symbol(ticker)
+        pt.save_weekly_prediction(
+            ticker, details["week_start"], details["week_end"],
+            weekly_average, currency_symbol, "on-demand",
+        )
         return {
             "ticker": ticker,
             "weekly_average_price": weekly_average,
@@ -455,7 +465,7 @@ def predict_week(ticker: str):
             "week_end": details["week_end"],
             "daily_predictions": details["daily_predictions"],
             "on_demand": True,
-            "currency_symbol": ml.get_currency_symbol(ticker),
+            "currency_symbol": currency_symbol,
             "status": "done",
         }
 
