@@ -30,6 +30,7 @@ QUOTE_CACHE_TTL_SECONDS = 5  # matches websocket poll interval
 
 _validate_cache: dict[str, tuple[float, bool]] = {}
 VALIDATE_CACHE_TTL_SECONDS = 3600  # ticker validity rarely changes within an hour
+VALIDATE_FAIL_TTL_SECONDS = 30
 
 # ---------- Currency / formatting ----------
 #
