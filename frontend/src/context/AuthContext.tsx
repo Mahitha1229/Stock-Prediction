@@ -11,20 +11,20 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
-  const [username, setUsername] = useState<string | null>(localStorage.getItem('username'))
+  const [token, setToken] = useState<string | null>(sessionStorage.getItem('token'))
+  const [username, setUsername] = useState<string | null>(sessionStorage.getItem('username'))
 
   async function loginUser(user: string, password: string) {
     const t = await apiLogin(user, password)
-    localStorage.setItem('token', t)
-    localStorage.setItem('username', user)
+    sessionStorage.setItem('token', t)
+    sessionStorage.setItem('username', user)
     setToken(t)
     setUsername(user)
   }
 
   function logout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('username')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('username')
     setToken(null)
     setUsername(null)
   }
