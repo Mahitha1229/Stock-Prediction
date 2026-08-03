@@ -477,6 +477,14 @@ def get_curated_model(ticker: str):
 
     return model_dict
 
+def is_curated_model_ready(ticker: str) -> bool:
+    """True if a curated model is already loaded in memory or cached on
+    disk — i.e. calling get_curated_model() would return instantly with
+    no network download. Used so the API can decide whether to answer
+    synchronously or background the (possibly slow) first-time download."""
+    if ticker in _curated_model_cache:
+        return True
+    return os.path.exists(_curated_cache_path(ticker))
 
 def load_models() -> dict:
     return {ticker: None for ticker in CURATED_TICKERS}
