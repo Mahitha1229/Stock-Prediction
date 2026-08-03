@@ -8,7 +8,7 @@ export const WS_BASE = API_BASE.replace(/^http/, 'ws')
 export const api = axios.create({ baseURL: API_BASE, timeout: 20000 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -17,7 +17,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('username')
       window.location.href = '/login'
     }
     return Promise.reject(error)
