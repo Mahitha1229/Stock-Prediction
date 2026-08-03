@@ -131,13 +131,30 @@ def validate_ticker(ticker: str) -> bool:
     now = time.time()
     if ticker in _validate_cache:
         cached_at, is_valid = _validate_cache[ticker]
-        if now - cached_at < VALIDATE_CACHE_TTL_SECONDS:
+        ttl = VALIDATE_CACHE_TTL_SECONDS if is_valid else VALIDATE_FAIL_TTL_SECONDS
+        if now - cached_at < ttl:
             return is_valid
-    try:
-        hist = yf.Ticker(ticker).history(period="5d")
-        is_valid = not hist.empty
-    except Exception:
-        is_valid = False
+
+    # A recent successful quote already proves this ticker is valid —
+    # skip a redundant Yahoo call that could get rate-limited.
+    if ticker in _quote_cache:
+        quote_cached_at, data = _quote_cache[ticker]
+        if now - quote_cached_at < QUOTE_CACHE_TTL_SECONDS and data:
+            _validate_cache[ticker] = (now, True)
+            return True
+
+    is_valid = False
+    for attempt in range(2):
+        try:
+            hist = yf.Ticker(ticker).history(period="5d")
+            if not hist.empty:
+                is_valid = True
+                break
+        except Exception:
+            pass
+        if attempt == 0:
+            time.sleep(0.5)
+
     _validate_cache[ticker] = (now, is_valid)
     return is_valid
 
