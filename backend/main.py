@@ -38,6 +38,8 @@ _prediction_jobs_lock = threading.Lock()
 
 
 def _train_and_store_prediction(ticker: str):
+    """Background job for ON-DEMAND tickers: trains a fresh XGBoost/RF model
+    from scratch, then predicts. Used when no cached model exists yet."""
     try:
         model_dict = ml.get_or_train_model(ticker, all_models)
         if not model_dict:
@@ -74,11 +76,53 @@ def _train_and_store_prediction(ticker: str):
         with _prediction_jobs_lock:
             _prediction_jobs[ticker] = {"status": "error", "detail": str(e)}
 
+
+def _train_and_store_curated_prediction(ticker: str):
+    """Background job for CURATED tickers on a cold cache: get_curated_model()
+    may need to download a .pkl from GitHub releases (can take up to 120s),
+    so this must never run inline inside a request — it would blow past any
+    reasonable frontend timeout. Reuses _prediction_jobs so the same polling
+    endpoint/logic on the frontend works for both curated and on-demand cold starts."""
+    try:
+        model_dict = ml.get_curated_model(ticker)
+        if model_dict is None:
+            with _prediction_jobs_lock:
+                _prediction_jobs[ticker] = {
+                    "status": "error",
+                    "detail": "Could not load model for this ticker right now, please try again",
+                }
+            return
+
+        predicted_price, prediction_date, confidence = ml.predict_next_day(ticker, model_dict)
+        if predicted_price is None:
+            with _prediction_jobs_lock:
+                _prediction_jobs[ticker] = {"status": "error", "detail": prediction_date}
+            return
+
+        currency_symbol = ml.get_currency_symbol(ticker)
+        result = {
+            "ticker": ticker,
+            "predicted_price": round(float(predicted_price), 2),
+            "prediction_date": prediction_date,
+            "on_demand": False,
+            "currency_symbol": currency_symbol,
+            "confidence_low": confidence["lower"] if confidence else None,
+            "confidence_high": confidence["upper"] if confidence else None,
+        }
+        pt.save_prediction(ticker, prediction_date, result["predicted_price"], currency_symbol, "curated")
+        with _prediction_jobs_lock:
+            _prediction_jobs[ticker] = {"status": "done", "data": result}
+    except Exception as e:
+        with _prediction_jobs_lock:
+            _prediction_jobs[ticker] = {"status": "error", "detail": str(e)}
+
+
 _weekly_prediction_jobs: dict[str, dict] = {}
 _weekly_jobs_lock = threading.Lock()
 
 
 def _train_and_store_weekly_prediction(ticker: str):
+    """Background job for ON-DEMAND weekly forecasts."""
     try:
         model_dict = ml.get_or_train_model(ticker, all_models)
         if not model_dict:
@@ -110,6 +154,50 @@ def _train_and_store_weekly_prediction(ticker: str):
             "week_end": details["week_end"],
             "daily_predictions": details["daily_predictions"],
             "on_demand": bool(model_dict.get("on_demand")),
+            "currency_symbol": currency_symbol,
+        }
+        with _weekly_jobs_lock:
+            _weekly_prediction_jobs[ticker] = {"status": "done", "data": result}
+    except Exception as e:
+        with _weekly_jobs_lock:
+            _weekly_prediction_jobs[ticker] = {"status": "error", "detail": str(e)}
+
+
+def _train_and_store_curated_weekly_prediction(ticker: str):
+    """Background job for CURATED weekly forecasts on a cold cache — same
+    reasoning as _train_and_store_curated_prediction: get_curated_model()
+    can trigger a slow GitHub download, so it must run off the request thread."""
+    try:
+        model_dict = ml.get_curated_model(ticker)
+        if model_dict is None:
+            with _weekly_jobs_lock:
+                _weekly_prediction_jobs[ticker] = {
+                    "status": "error",
+                    "detail": "Could not load model for this ticker right now, please try again",
+                }
+            return
+
+        weekly_average, current_price, details = ml.predict_weekly_average(ticker, model_dict)
+        if weekly_average is None:
+            with _weekly_jobs_lock:
+                _weekly_prediction_jobs[ticker] = {"status": "error", "detail": current_price}
+            return
+
+        currency_symbol = ml.get_currency_symbol(ticker)
+        pt.save_weekly_prediction(
+            ticker, details["week_start"], details["week_end"],
+            weekly_average, currency_symbol, "curated",
+        )
+
+        result = {
+            "ticker": ticker,
+            "weekly_average_price": weekly_average,
+            "current_price": round(current_price, 2),
+            "change_pct": details["change_pct"],
+            "week_start": details["week_start"],
+            "week_end": details["week_end"],
+            "daily_predictions": details["daily_predictions"],
+            "on_demand": False,
             "currency_symbol": currency_symbol,
         }
         with _weekly_jobs_lock:
@@ -268,7 +356,16 @@ def news(ticker: str, limit: int = 6):
 
 @app.get("/stock/{ticker}/fundamentals")
 def fundamentals(ticker: str):
-    data = ml.get_fundamentals(ticker.upper())
+    ticker = ticker.upper()
+    # Indices (^N225, ^GSPC, etc.) have no market cap / P/E / EPS / dividend
+    # yield — those concepts don't apply. Short-circuit before hitting
+    # yfinance/Finnhub at all, which also avoids wasted rate-limited calls.
+    if ml.is_index_ticker(ticker):
+        raise HTTPException(
+            status_code=422,
+            detail="Fundamentals aren't available for indices — try a company ticker instead",
+        )
+    data = ml.get_fundamentals(ticker)
     if not data:
         raise HTTPException(status_code=404, detail="No fundamentals data found for this ticker")
     return data
@@ -283,24 +380,45 @@ def predict(ticker: str):
     ticker = ticker.upper()
 
     if ticker in ml.CURATED_TICKERS:
-        model_dict = ml.get_curated_model(ticker)
-        if model_dict is None:
-            raise HTTPException(status_code=503, detail="Could not load model for this ticker right now, please try again")
-        predicted_price, prediction_date, confidence = ml.predict_next_day(ticker, model_dict)
-        if predicted_price is None:
-            raise HTTPException(status_code=422, detail=prediction_date)
-        currency_symbol = ml.get_currency_symbol(ticker)
-        pt.save_prediction(ticker, prediction_date, round(float(predicted_price), 2), currency_symbol, "curated")
-        return {
-            "ticker": ticker,
-            "predicted_price": round(float(predicted_price), 2),
-            "prediction_date": prediction_date,
-            "on_demand": False,
-            "currency_symbol": currency_symbol,
-            "confidence_low": confidence["lower"] if confidence else None,
-            "confidence_high": confidence["upper"] if confidence else None,
-            "status": "done",
-        }
+        if ml.is_curated_model_ready(ticker):
+            # Model already in memory or on disk — safe to answer inline.
+            model_dict = ml.get_curated_model(ticker)
+            if model_dict is None:
+                raise HTTPException(status_code=503, detail="Could not load model for this ticker right now, please try again")
+            predicted_price, prediction_date, confidence = ml.predict_next_day(ticker, model_dict)
+            if predicted_price is None:
+                raise HTTPException(status_code=422, detail=prediction_date)
+            currency_symbol = ml.get_currency_symbol(ticker)
+            pt.save_prediction(ticker, prediction_date, round(float(predicted_price), 2), currency_symbol, "curated")
+            return {
+                "ticker": ticker,
+                "predicted_price": round(float(predicted_price), 2),
+                "prediction_date": prediction_date,
+                "on_demand": False,
+                "currency_symbol": currency_symbol,
+                "confidence_low": confidence["lower"] if confidence else None,
+                "confidence_high": confidence["upper"] if confidence else None,
+                "status": "done",
+            }
+
+        # Cold start: get_curated_model() would download a .pkl from GitHub
+        # (can take up to 120s) — never do that inline. Background it and
+        # respond 202, same pattern as on-demand tickers below.
+        with _prediction_jobs_lock:
+            job = _prediction_jobs.get(ticker)
+            if job is None or job["status"] == "error":
+                _prediction_jobs[ticker] = {"status": "training"}
+                threading.Thread(target=_train_and_store_curated_prediction, args=(ticker,), daemon=True).start()
+                job = _prediction_jobs[ticker]
+
+        if job["status"] == "training":
+            return JSONResponse(status_code=202, content={"ticker": ticker, "status": "training"})
+        if job["status"] == "error":
+            raise HTTPException(status_code=422, detail=job["detail"])
+
+        result = dict(job["data"])
+        result["status"] = "done"
+        return result
 
     cached = ml.get_cached_on_demand_model(ticker)
     if cached:
@@ -422,29 +540,48 @@ def predict_week(ticker: str):
     ticker = ticker.upper()
 
     if ticker in ml.CURATED_TICKERS:
-        model_dict = ml.get_curated_model(ticker)
-        if model_dict is None:
-            raise HTTPException(status_code=503, detail="Could not load model for this ticker right now, please try again")
-        weekly_average, current_price, details = ml.predict_weekly_average(ticker, model_dict)
-        if weekly_average is None:
-            raise HTTPException(status_code=422, detail=current_price)
-        currency_symbol = ml.get_currency_symbol(ticker)
-        pt.save_weekly_prediction(
-            ticker, details["week_start"], details["week_end"],
-            weekly_average, currency_symbol, "curated",
-        )
-        return {
-            "ticker": ticker,
-            "weekly_average_price": weekly_average,
-            "current_price": round(current_price, 2),
-            "change_pct": details["change_pct"],
-            "week_start": details["week_start"],
-            "week_end": details["week_end"],
-            "daily_predictions": details["daily_predictions"],
-            "on_demand": False,
-            "currency_symbol": currency_symbol,
-            "status": "done",
-        }
+        if ml.is_curated_model_ready(ticker):
+            model_dict = ml.get_curated_model(ticker)
+            if model_dict is None:
+                raise HTTPException(status_code=503, detail="Could not load model for this ticker right now, please try again")
+            weekly_average, current_price, details = ml.predict_weekly_average(ticker, model_dict)
+            if weekly_average is None:
+                raise HTTPException(status_code=422, detail=current_price)
+            currency_symbol = ml.get_currency_symbol(ticker)
+            pt.save_weekly_prediction(
+                ticker, details["week_start"], details["week_end"],
+                weekly_average, currency_symbol, "curated",
+            )
+            return {
+                "ticker": ticker,
+                "weekly_average_price": weekly_average,
+                "current_price": round(current_price, 2),
+                "change_pct": details["change_pct"],
+                "week_start": details["week_start"],
+                "week_end": details["week_end"],
+                "daily_predictions": details["daily_predictions"],
+                "on_demand": False,
+                "currency_symbol": currency_symbol,
+                "status": "done",
+            }
+
+        # Cold start: same reasoning as /predict above — background the
+        # potentially-slow GitHub model download instead of blocking the request.
+        with _weekly_jobs_lock:
+            job = _weekly_prediction_jobs.get(ticker)
+            if job is None or job["status"] == "error":
+                _weekly_prediction_jobs[ticker] = {"status": "training"}
+                threading.Thread(target=_train_and_store_curated_weekly_prediction, args=(ticker,), daemon=True).start()
+                job = _weekly_prediction_jobs[ticker]
+
+        if job["status"] == "training":
+            return JSONResponse(status_code=202, content={"ticker": ticker, "status": "training"})
+        if job["status"] == "error":
+            raise HTTPException(status_code=422, detail=job["detail"])
+
+        result = dict(job["data"])
+        result["status"] = "done"
+        return result
 
     cached = ml.get_cached_on_demand_model(ticker)
     if cached:
