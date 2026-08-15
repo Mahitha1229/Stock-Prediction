@@ -355,7 +355,26 @@ const [weeklyPredictionSummary, setWeeklyPredictionSummary] = useState<Predictio
 
             <div style={{ marginTop: 16 }}>
               {loading && <ChartSkeleton />}
-              {error && <div className="error-text">{error}</div>}
+              {error && (
+  <div className="error-text" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+    <span>{error}</span>
+    <button
+      type="button"
+      onClick={() => window.location.reload()}
+      style={{
+        fontSize: 12,
+        padding: '2px 10px',
+        borderRadius: 4,
+        border: '1px solid var(--text-secondary)',
+        background: 'transparent',
+        color: 'inherit',
+        cursor: 'pointer',
+      }}
+    >
+      Refresh
+    </button>
+  </div>
+)}
               {!loading && !error && candles.length > 0 && (
                 <CandlestickChart candles={candles} predictions={predictionHistory} livePrediction={prediction} />
               )}
