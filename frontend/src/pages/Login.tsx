@@ -23,7 +23,12 @@ export default function Login() {
         await loginUser(username, password)
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Something went wrong')
+      if (err?.code === 'ECONNABORTED' || !err?.response) {
+        // no response = timeout, network drop, or backend still waking up
+        setError('First load can take a moment to wake the server. Please refresh or retry.')
+      } else {
+        setError(err?.response?.data?.detail || 'Please refresh or retry.')
+      }
     } finally {
       setBusy(false)
     }
@@ -47,7 +52,29 @@ export default function Login() {
         <button className="primary" type="submit" style={{ width: '100%' }} disabled={busy}>
           {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
         </button>
-        {error && <div className="error-text">{error}</div>}
+        {error && (
+          <div className="error-text" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span>{error}</span>
+            {error.includes('refresh or retry') && (
+              <button
+                type="button"
+                onClick={handleSubmit as any}
+                disabled={busy}
+                style={{
+                  fontSize: 12,
+                  padding: '2px 10px',
+                  borderRadius: 4,
+                  border: '1px solid var(--text-secondary)',
+                  background: 'transparent',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
         <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
           {mode === 'login' ? (
             <>No account? <a href="#" onClick={(e) => { e.preventDefault(); setMode('register') }} style={{ color: 'var(--accent)' }}>Register</a></>
