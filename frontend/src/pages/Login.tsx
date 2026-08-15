@@ -53,28 +53,27 @@ export default function Login() {
           {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
         </button>
         {error && (
-          <div className="error-text" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span>{error}</span>
-            {error.includes('refresh or retry') && (
-              <button
-                type="button"
-                onClick={handleSubmit as any}
-                disabled={busy}
-                style={{
-                  fontSize: 12,
-                  padding: '2px 10px',
-                  borderRadius: 4,
-                  border: '1px solid var(--text-secondary)',
-                  background: 'transparent',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                }}
-              >
-                Retry
-              </button>
-            )}
-          </div>
-        )}
+  <div className="error-text" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+    <span>{error}</span>
+    {error.includes('refresh or retry') && (
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        style={{
+          fontSize: 12,
+          padding: '2px 10px',
+          borderRadius: 4,
+          border: '1px solid var(--text-secondary)',
+          background: 'transparent',
+          color: 'inherit',
+          cursor: 'pointer',
+        }}
+      >
+        Refresh
+      </button>
+    )}
+  </div>
+)}
         <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
           {mode === 'login' ? (
             <>No account? <a href="#" onClick={(e) => { e.preventDefault(); setMode('register') }} style={{ color: 'var(--accent)' }}>Register</a></>
