@@ -9,13 +9,20 @@ export default function TickerTape({
   onSelect?: (ticker: string) => void
 }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
+  const [hasError, setHasError] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
+    setHasError(false)
     const sockets = tickers.map((t) =>
-      openPriceSocket(t, (q) => setQuotes((prev) => ({ ...prev, [t]: q })), () => {})
+      openPriceSocket(
+        t,
+        (q) => setQuotes((prev) => ({ ...prev, [t]: q })),
+        () => setHasError(true)
+      )
     )
     return () => sockets.forEach((s) => s.close())
-  }, [tickers.join(',')])
+  }, [tickers.join(','), retryKey])
 
   const items = tickers
     .map((t) => quotes[t])
@@ -24,7 +31,39 @@ export default function TickerTape({
   const loop = [...items, ...items]
 
   if (items.length === 0) {
-    return <div className="ticker-tape"><div className="ticker-tape__track" style={{ padding: '0 20px', color: 'var(--text-dim)', fontSize: 13 }}>Connecting to live feed…</div></div>
+    return (
+      <div className="ticker-tape">
+        <div
+          className="ticker-tape__track"
+          style={{ padding: '0 20px', color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}
+        >
+          {hasError ? (
+            <>
+              <span>First load can take a moment to wake the server. Please refresh or retry.</span>
+              <button
+                onClick={() => {
+                  setHasError(false)
+                  setRetryKey((k) => k + 1)
+                }}
+                style={{
+                  fontSize: 12,
+                  padding: '2px 10px',
+                  borderRadius: 4,
+                  border: '1px solid var(--text-dim)',
+                  background: 'transparent',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            'Connecting to live feed…'
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
