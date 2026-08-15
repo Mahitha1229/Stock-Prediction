@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { openPriceSocket, Quote } from '../api'
+import { openPriceSocket, Quote, SocketStatus } from '../api'
 
 export default function TickerTape({
   tickers,
@@ -9,16 +9,16 @@ export default function TickerTape({
   onSelect?: (ticker: string) => void
 }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
-  const [hasError, setHasError] = useState(false)
+  const [statuses, setStatuses] = useState<Record<string, SocketStatus>>({})
   const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    setHasError(false)
+    setStatuses({})
     const sockets = tickers.map((t) =>
       openPriceSocket(
         t,
         (q) => setQuotes((prev) => ({ ...prev, [t]: q })),
-        () => setHasError(true)
+        (status) => setStatuses((prev) => ({ ...prev, [t]: status }))
       )
     )
     return () => sockets.forEach((s) => s.close())
@@ -30,6 +30,12 @@ export default function TickerTape({
 
   const loop = [...items, ...items]
 
+  // If nothing has loaded and every socket is stuck reconnecting, the
+  // backend is very likely still waking up (Render cold start) or down.
+  const statusValues = tickers.map((t) => statuses[t])
+  const allReconnecting =
+    tickers.length > 0 && statusValues.every((s) => s === 'reconnecting' || s === 'stale')
+
   if (items.length === 0) {
     return (
       <div className="ticker-tape">
@@ -37,14 +43,11 @@ export default function TickerTape({
           className="ticker-tape__track"
           style={{ padding: '0 20px', color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}
         >
-          {hasError ? (
+          {allReconnecting ? (
             <>
               <span>First load can take a moment to wake the server. Please refresh or retry.</span>
               <button
-                onClick={() => {
-                  setHasError(false)
-                  setRetryKey((k) => k + 1)
-                }}
+                onClick={() => setRetryKey((k) => k + 1)}
                 style={{
                   fontSize: 12,
                   padding: '2px 10px',
